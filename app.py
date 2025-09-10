@@ -168,7 +168,8 @@ def get_state(prop1, val1, prop2, val2):
     return results
 
 # === Interfaz Streamlit ===
-st.title("Calculadora Termodinámica Completa 🌡️")
+st.title("PVT by Greec 🌡️💨")
+st.subheader("Calculadora de propiedades termodinámicas")
 
 st.sidebar.header("Configuración de unidades")
 st.sidebar.subheader("Entrada")
@@ -198,3 +199,4 @@ if st.button("Calcular"):
             st.write(f"{k} = {v} {output_units[k]}")
         else:
             st.write(f"{k}: No disponible")
+
