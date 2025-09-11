@@ -278,11 +278,17 @@ if st.button("Calcular"):
 if st.session_state['historial']:
     with st.expander("Mostrar Historial"):
         hist = st.session_state['historial']
-        # Slider vertical
-        index = st.slider("Selecciona cálculo", 0, len(hist)-1, len(hist)-1, key="slider_historial")
-        st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
-        for k, v in hist[index]["resultado"].items():
-            if v is not None:
-                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
-            else:
-                st.write(f"**{display_names.get(k,k)}**: No disponible")
+        if len(hist) > 0:
+            index = st.slider(
+                "Selecciona cálculo", 
+                min_value=0, 
+                max_value=len(hist)-1, 
+                value=len(hist)-1, 
+                key="slider_historial"
+            )
+            st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
+            for k, v in hist[index]["resultado"].items():
+                if v is not None:
+                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
+                else:
+                    st.write(f"**{display_names.get(k,k)}**: No disponible")
