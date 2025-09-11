@@ -297,56 +297,58 @@ if hist:
 
 # === Gráfico interactivo plegable ===
 with st.expander("Mostrar Gráfico"):
-    prop_x = st.selectbox("Propiedad eje X", list(to_return.keys()) + extra_props, index=0)
-    prop_y = st.selectbox("Propiedad eje Y", list(to_return.keys()) + extra_props, index=1)
+    # Limitamos las opciones
+    grafico_tipo = st.selectbox("Selecciona diagrama", ["T vs S", "P vs v"])
 
     fig = go.Figure()
 
-    if hist:  # Si hay historial, usamos los cálculos reales
-        for i, h in enumerate(hist):
-            x = h["resultado"].get(prop_x)
-            y = h["resultado"].get(prop_y)
-            if x is not None and y is not None:
-                fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers+lines', name=f"Cálculo {i+1}"))
-    else:  # Si no hay historial, graficamos la curva de saturación del fluido seleccionado
-        import numpy as np
+    try:
+        fluid = fluido_cp
+        T_triple = CP.PropsSI('Ttriple', fluid)
+        T_crit = CP.PropsSI('Tcrit', fluid)
+        T_vals = np.linspace(T_triple + 0.01, T_crit - 0.01, 100)  # rango de temperatura
 
-        try:
-            fluid = fluido_cp
-            T_triple = CP.PropsSI('Ttriple', fluid)
-            T_crit = CP.PropsSI('Tcrit', fluid)
-            T_vals = np.linspace(T_triple + 0.01, T_crit - 0.01, 100)  # rango temperatura
-            P_liq = [CP.PropsSI('P', 'T', T, 'Q', 0, fluid) for T in T_vals]  # líquido saturado
-            P_vap = [CP.PropsSI('P', 'T', T, 'Q', 1, fluid) for T in T_vals]  # vapor saturado
+        if grafico_tipo == "T vs S":
+            S_liq = [CP.PropsSI('S', 'T', T, 'Q', 0, fluid) for T in T_vals]
+            S_vap = [CP.PropsSI('S', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
-            # Convertimos a las unidades seleccionadas
-            if prop_x == "T":
-                T_vals_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
-            elif prop_x == "P":
-                T_vals_plot = [from_SI("P", P, output_units["P"]) for P in P_liq]  # solo ejemplo
-            else:
-                T_vals_plot = T_vals  # se puede mejorar para otros ejes
+            # Convertir unidades
+            T_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
+            S_liq_plot = [from_SI("s", s, output_units["s"]) for s in S_liq]
+            S_vap_plot = [from_SI("s", s, output_units["s"]) for s in S_vap]
 
-            if prop_y == "P":
-                P_liq_plot = [from_SI("P", P, output_units["P"]) for P in P_liq]
-                P_vap_plot = [from_SI("P", P, output_units["P"]) for P in P_vap]
-            elif prop_y == "T":
-                P_liq_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
-                P_vap_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
-            else:
-                P_liq_plot = P_liq
-                P_vap_plot = P_vap
+            fig.add_trace(go.Scatter(x=S_liq_plot, y=T_plot, mode='lines', name="Líquido saturado"))
+            fig.add_trace(go.Scatter(x=S_vap_plot, y=T_plot, mode='lines', name="Vapor saturado"))
+            fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
 
-            fig.add_trace(go.Scatter(x=T_vals_plot, y=P_liq_plot, mode='lines', name="Líquido saturado"))
-            fig.add_trace(go.Scatter(x=T_vals_plot, y=P_vap_plot, mode='lines', name="Vapor saturado"))
+        elif grafico_tipo == "P vs v":
+            P_liq = [CP.PropsSI('P', 'T', T, 'Q', 0, fluid) for T in T_vals]
+            P_vap = [CP.PropsSI('P', 'T', T, 'Q', 1, fluid) for T in T_vals]
+            v_liq = [1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid) for T in T_vals]  # v = 1/ρ
+            v_vap = [1/CP.PropsSI('D', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
-        except Exception as e:
-            st.write("No se pudo generar la curva de saturación:", e)
+            # Convertir unidades
+            P_liq_plot = [from_SI("P", P, output_units["P"]) for P in P_liq]
+            P_vap_plot = [from_SI("P", P, output_units["P"]) for P in P_vap]
+            v_liq_plot = [from_SI("v", v, output_units["v"]) for v in v_liq]
+            v_vap_plot = [from_SI("v", v, output_units["v"]) for v in v_vap]
 
-    fig.update_layout(
-        title=f"{display_names.get(prop_y, prop_y)} vs {display_names.get(prop_x, prop_x)}",
-        xaxis_title=f"{display_names.get(prop_x, prop_x)} ({output_units[prop_x]})",
-        yaxis_title=f"{display_names.get(prop_y, prop_y)} ({output_units[prop_y]})",
-        showlegend=True
-    )
+            fig.add_trace(go.Scatter(x=v_liq_plot, y=P_liq_plot, mode='lines', name="Líquido saturado"))
+            fig.add_trace(go.Scatter(x=v_vap_plot, y=P_vap_plot, mode='lines', name="Vapor saturado"))
+            fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
+
+    except Exception as e:
+        st.write("No se pudo generar la curva de saturación:", e)
+
+    # Si hay historial, agregar puntos
+    for i, h in enumerate(hist):
+        if grafico_tipo == "T vs S":
+            x = h["resultado"].get("s")
+            y = h["resultado"].get("T")
+        elif grafico_tipo == "P vs v":
+            x = h["resultado"].get("v")
+            y = h["resultado"].get("P")
+        if x is not None and y is not None:
+            fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers', name=f"Cálculo {i+1}"))
+
     st.plotly_chart(fig)
