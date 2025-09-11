@@ -449,7 +449,8 @@ with st.expander("Mostrar Gráfico"):
 with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
-    st.markdown("###### Si llega a descubrir algun bug, problema o algun punto en el cual no se generan los valores correctos contactar por el mail para realizar la correccion.")
+    st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
