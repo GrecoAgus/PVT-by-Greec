@@ -4,6 +4,7 @@ from datetime import datetime
 import pytz
 import plotly.graph_objects as go
 import numpy as np
+import scipy.optimize as opt
 
 # === Configuración inicial ===
 fluidos = {
@@ -167,32 +168,44 @@ def from_SI(prop, val, unit):
     except:
         return val
 
-# === Función principal mejorada ===
+# === Función para calcular P a partir de (T,H) o (T,U) ===
+
+def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H"):
+    """
+    Calcula la presión (Pa) para un valor dado de entalpía o energía interna y temperatura.
+    prop = "H" o "U"
+    """
+    def f(P):
+        return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
+
+    try:
+        # Rango amplio de presiones
+        P_guess = opt.brentq(f, 100, 1e8)
+        return P_guess
+    except Exception:
+        return None
+
+# === Función principal modificada ===
 def get_state(prop1, val1, prop2, val2, fluid):
-    """
-    Calcula todas las propiedades de un fluido usando CoolProp.
-    Mejora: maneja pares que pueden fallar, como (T,H) o (P,S).
-    """
     val1_SI = to_SI(prop1, val1, input_units[prop1])
     val2_SI = to_SI(prop2, val2, input_units[prop2])
     results = {}
 
+    # Caso especial: (T,H) o (T,U) → resolvemos P automáticamente
+    if prop1 == "T" and prop2 in ["h", "u"]:
+        prop_map = {"h": "H", "u": "U"}
+        P_SI = P_from_T_H_or_U(val1_SI, val2_SI, fluid, prop=prop_map[prop2])
+        if P_SI is not None:
+            val2_SI = P_SI  # reemplazamos val2_SI por presión
+            prop2 = "P"
+
+    # Calculamos todas las demás propiedades
     for k, v in to_return.items():
         try:
-            # Intento normal
             val = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
             results[k] = from_SI(k, val, output_units[k])
         except:
-            # Si falla, intento con fase explícita
-            try:
-                # Detectar si hay calidad disponible
-                if k == "x":
-                    val = CP.PropsSI("Q", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-                else:
-                    val = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-                results[k] = from_SI(k, val, output_units[k])
-            except:
-                results[k] = None
+            results[k] = None
 
     # Velocidad del sonido
     try:
@@ -231,6 +244,7 @@ def get_state(prop1, val1, prop2, val2, fluid):
         results["cp"], results["cv"], results["k"] = None, None, None
 
     return results
+
 
 # === Streamlit Interface ===
 st.title("PVT by Greec 🌡️💨")
@@ -408,4 +422,5 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
+
 
