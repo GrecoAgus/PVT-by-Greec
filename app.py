@@ -191,21 +191,20 @@ def get_state(prop1, val1, prop2, val2, fluid):
     val2_SI = to_SI(prop2, val2, input_units[prop2])
     results = {}
 
-    # Caso especial: (T,H) o (T,U) → resolvemos P automáticamente
-    if prop1 == "T" and prop2 in ["h", "u"]:
-        prop_map = {"h": "H", "u": "U"}
-        P_SI = P_from_T_H_or_U(val1_SI, val2_SI, fluid, prop=prop_map[prop2])
-        if P_SI is not None:
-            val2_SI = P_SI  # reemplazamos val2_SI por presión
-            prop2 = "P"
-
-    # Calculamos todas las demás propiedades
     for k, v in to_return.items():
         try:
             val = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
             results[k] = from_SI(k, val, output_units[k])
         except:
             results[k] = None
+
+    # Volumen específico
+    try:
+        rho = CP.PropsSI("D", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        v = 1/rho
+        results["v"] = from_SI("v", v, output_units["v"])
+    except:
+        results["v"] = None
 
     # Velocidad del sonido
     try:
@@ -241,10 +240,7 @@ def get_state(prop1, val1, prop2, val2, fluid):
         results["cv"] = from_SI("cv", cv, output_units["cv"])
         results["k"] = k
     except:
-        results["cp"], results["cv"], results["k"] = None, None, None
-
-    return results
-
+        results["]()
 
 # === Streamlit Interface ===
 st.title("PVT by Greec 🌡️💨")
@@ -422,5 +418,6 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
+
 
 
