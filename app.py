@@ -380,22 +380,17 @@ with st.expander("Mostrar Gráfico"):
                     arrowcolor="green"
                 )
 
-        # Leyenda sobre flechas en esquina superior derecha
-        fig.add_annotation(
-            xref="paper", yref="paper",
-            x=1.0, y=1.0,
-            showarrow=False,
-            text="Flechas: sentido de desplazamiento",
-            font=dict(size=12, color="black"),
-            align="right",
-            bgcolor="rgba(255,255,255,0.7)",
-            bordercolor="black",
-            borderwidth=1,
-            borderpad=2
-        )
+            # Agregar "trace" invisible solo para la leyenda del sentido
+            fig.add_trace(go.Scatter(
+                x=[None],
+                y=[None],
+                mode='lines+markers',
+                marker=dict(size=6, color='green'),
+                line=dict(color='green', width=2),
+                name="Sentido"
+            ))
 
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
-
