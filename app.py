@@ -296,23 +296,29 @@ if hist:
                 st.write(f"{display_names.get(k,k)}: No disponible")
 
 # === Gráfico interactivo plegable ===
-if hist:  # Solo mostrar si hay historial
-    with st.expander("Mostrar Gráfico"):
-        prop_x = st.selectbox("Propiedad eje X", list(to_return.keys()) + extra_props, index=0)
-        prop_y = st.selectbox("Propiedad eje Y", list(to_return.keys()) + extra_props, index=1)
+with st.expander("Mostrar Gráfico"):
+    prop_x = st.selectbox("Propiedad eje X", list(to_return.keys()) + extra_props, index=0)
+    prop_y = st.selectbox("Propiedad eje Y", list(to_return.keys()) + extra_props, index=1)
 
-        fig = go.Figure()
+    fig = go.Figure()
+
+    if hist:  # Si hay historial, usamos los cálculos reales
         for i, h in enumerate(hist):
             x = h["resultado"].get(prop_x)
             y = h["resultado"].get(prop_y)
             if x is not None and y is not None:
                 fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers+lines', name=f"Cálculo {i+1}"))
+    else:  # Si no hay historial, mostramos una curva genérica
+        import numpy as np
+        x_vals = np.linspace(0, 100, 50)  # ejemplo: 50 puntos de 0 a 100
+        y_vals = x_vals * 0.8 + 10        # ejemplo: curva lineal genérica
+        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name="Curva genérica"))
 
-        fig.update_layout(
-            title=f"{display_names.get(prop_y, prop_y)} vs {display_names.get(prop_x, prop_x)}",
-            xaxis_title=f"{display_names.get(prop_x, prop_x)} ({output_units[prop_x]})",
-            yaxis_title=f"{display_names.get(prop_y, prop_y)} ({output_units[prop_y]})",
-            showlegend=True
-        )
-        st.plotly_chart(fig)
+    fig.update_layout(
+        title=f"{display_names.get(prop_y, prop_y)} vs {display_names.get(prop_x, prop_x)}",
+        xaxis_title=f"{display_names.get(prop_x, prop_x)} ({output_units[prop_x]})",
+        yaxis_title=f"{display_names.get(prop_y, prop_y)} ({output_units[prop_y]})",
+        showlegend=True
+    )
+    st.plotly_chart(fig)
 
