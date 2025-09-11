@@ -377,10 +377,11 @@ with st.expander("Mostrar Gráfico"):
                     arrowhead=3,
                     arrowsize=1,
                     arrowwidth=1.5,
-                    arrowcolor="blue"
+                    arrowcolor="green"
                 )
 
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
+
