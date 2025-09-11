@@ -46,8 +46,8 @@ unit_options = {
     "vel_sonido": ["m/s", "ft/s"],
     "exergia": ["kJ/kg", "BTU/lb"],
     "mu": ["Pa·s", "cP", "lb/(ft·s)"],
-    "cp": ["J/kgK"],  # se dejan en SI
-    "cv": ["J/kgK"],
+    "cp": ["J/kgK", "kJ/kgK", "cal/gK", "kcal/kgK"], 
+    "cv": ["J/kgK", "kJ/kgK", "cal/gK", "kcal/kgK"], 
     "k": ["-"]
 }
 
@@ -112,6 +112,13 @@ def to_SI(prop, val, unit):
             if unit == "Pa·s": return val
             if unit == "cP": return val / 1000
             if unit == "lb/(ft·s)": return val / 47.8803
+        if prop in ["cp", "cv"]:
+            if unit == "J/kgK": return val
+            if unit == "kJ/kgK": return val * 1000
+            if unit == "cal/gK": return val * 4186.8
+            if unit == "kcal/kgK": return val * 4186.8
+        return val
+
     except:
         return val
     return val
@@ -152,8 +159,12 @@ def from_SI(prop, val, unit):
             if unit == "Pa·s": return val
             if unit == "cP": return val * 1000
             if unit == "lb/(ft·s)": return val * 47.8803
-        if prop in ["cp", "cv", "k"]:
-            return val  # se dejan sin conversión
+        if prop in ["cp", "cv"]:
+            if unit == "J/kgK": return val
+            if unit == "kJ/kgK": return val / 1000
+            if unit == "cal/gK": return val / 4186.8
+            if unit == "kcal/kgK": return val / 4186.8
+        return val
     except:
         return val
     return val
@@ -227,12 +238,12 @@ if preset_choice != "Ninguno":
 # --- Configuración detallada ---
 st.sidebar.header("Configuración de unidades")
 st.sidebar.subheader("Entrada")
-for p in props.keys() | set(extra_props):
+for p in list(props.keys()) + extra_props:  # lista concatenada para mantener cp y cv al final
     input_units[p] = st.sidebar.selectbox(f"Unidad de ingreso {p}", unit_options[p], 
                                           index=unit_options[p].index(input_units.get(p, unit_options[p][0])))
 
 st.sidebar.subheader("Salida")
-for p in props.keys() | set(extra_props):
+for p in list(props.keys()) + extra_props:
     output_units[p] = st.sidebar.selectbox(f"Unidad de salida {p}", unit_options[p], 
                                            index=unit_options[p].index(output_units.get(p, unit_options[p][0])))
 
@@ -258,3 +269,4 @@ if st.button("Calcular"):
             st.write(f"{k} = {v} {output_units[k]}")
         else:
             st.write(f"{k}: No disponible")
+
