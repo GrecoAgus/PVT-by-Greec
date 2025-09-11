@@ -3,6 +3,8 @@ import CoolProp.CoolProp as CP
 from datetime import datetime
 import pytz
 import plotly.graph_objects as go
+import plotly.graph_objects as go
+import numpy as np
 
 # === Configuración inicial ===
 fluidos = {
@@ -352,3 +354,4 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers', name=f"Cálculo {i+1}"))
 
     st.plotly_chart(fig)
+
