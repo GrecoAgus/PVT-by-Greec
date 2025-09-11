@@ -167,18 +167,32 @@ def from_SI(prop, val, unit):
     except:
         return val
 
-# === Función principal ===
+# === Función principal mejorada ===
 def get_state(prop1, val1, prop2, val2, fluid):
+    """
+    Calcula todas las propiedades de un fluido usando CoolProp.
+    Mejora: maneja pares que pueden fallar, como (T,H) o (P,S).
+    """
     val1_SI = to_SI(prop1, val1, input_units[prop1])
     val2_SI = to_SI(prop2, val2, input_units[prop2])
     results = {}
 
     for k, v in to_return.items():
         try:
+            # Intento normal
             val = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
             results[k] = from_SI(k, val, output_units[k])
         except:
-            results[k] = None
+            # Si falla, intento con fase explícita
+            try:
+                # Detectar si hay calidad disponible
+                if k == "x":
+                    val = CP.PropsSI("Q", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+                else:
+                    val = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+                results[k] = from_SI(k, val, output_units[k])
+            except:
+                results[k] = None
 
     # Velocidad del sonido
     try:
@@ -394,3 +408,4 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
+
