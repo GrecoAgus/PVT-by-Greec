@@ -46,8 +46,8 @@ unit_options = {
     "vel_sonido": ["m/s", "ft/s"],
     "exergia": ["kJ/kg", "BTU/lb"],
     "mu": ["Pa·s", "cP", "lb/(ft·s)"],
-    "cp": ["J/kgK", "kJ/kgK", "cal/gK", "kcal/kgK"], 
-    "cv": ["J/kgK", "kJ/kgK", "cal/gK", "kcal/kgK"], 
+    "cp": ["kJ/kgK", "J/kgK", "cal/gK", "kcal/kgK"], 
+    "cv": ["kJ/kgK", "J/kgK", "cal/gK", "kcal/kgK"], 
     "k": ["-"]
 }
 
@@ -269,5 +269,6 @@ if st.button("Calcular"):
             st.write(f"{k} = {v} {output_units[k]}")
         else:
             st.write(f"{k}: No disponible")
+
 
 
