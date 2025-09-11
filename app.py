@@ -279,12 +279,13 @@ hist = st.session_state.get('historial', [])
 
 if hist:  # Solo si hay al menos un cálculo
     with st.expander("Mostrar Historial"):
-        max_index = max(0, len(hist)-1)
+        max_index = int(len(hist)-1)
         index = st.slider(
             "Selecciona cálculo",
             min_value=0,
             max_value=max_index,
-            value=max_index,
+            value=max_index if max_index >= 0 else 0,
+            step=1,
             key="slider_historial"
         )
         st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
@@ -293,5 +294,6 @@ if hist:  # Solo si hay al menos un cálculo
                 st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
             else:
                 st.write(f"**{display_names.get(k,k)}**: No disponible")
+
 
 
