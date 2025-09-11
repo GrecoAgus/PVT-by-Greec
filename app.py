@@ -189,58 +189,72 @@ def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H"):
 def get_state(prop1, val1, prop2, val2, fluid):
     val1_SI = to_SI(prop1, val1, input_units[prop1])
     val2_SI = to_SI(prop2, val2, input_units[prop2])
-    results = {}
+    results = {k: None for k in to_return.keys()}  # inicializa todo en None
 
-    for k, v in to_return.items():
+    # Función interna para intentar calcular propiedades
+    def safe_prop(target):
         try:
-            val = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-            results[k] = from_SI(k, val, output_units[k])
+            val = CP.PropsSI(target, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+            return val
         except:
-            results[k] = None
+            return None
+
+    # Propiedades básicas
+    for k, v in to_return.items():
+        val = safe_prop(v)
+        if val is not None:
+            results[k] = from_SI(k, val, output_units[k])
 
     # Volumen específico
     try:
-        rho = CP.PropsSI("D", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-        v = 1/rho
-        results["v"] = from_SI("v", v, output_units["v"])
+        rho = safe_prop("D")
+        if rho: 
+            results["v"] = from_SI("v", 1/rho, output_units["v"])
     except:
         results["v"] = None
 
     # Velocidad del sonido
     try:
-        val = CP.PropsSI("A", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-        results["vel_sonido"] = from_SI("vel_sonido", val, output_units["vel_sonido"])
+        a = safe_prop("A")
+        if a:
+            results["vel_sonido"] = from_SI("vel_sonido", a, output_units["vel_sonido"])
     except:
         results["vel_sonido"] = None
 
     # Exergía
     try:
-        h = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-        s = CP.PropsSI("S", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        h = safe_prop("H")
+        s = safe_prop("S")
         h0 = CP.PropsSI("H", "T", T_ref + 273.15, "P", P_ref, fluid)
         s0 = CP.PropsSI("S", "T", T_ref + 273.15, "P", P_ref, fluid)
-        ex = (h - h0) - (T_ref + 273.15) * (s - s0)
-        results["exergia"] = from_SI("exergia", ex, output_units["exergia"])
+        if h is not None and s is not None:
+            ex = (h - h0) - (T_ref + 273.15)*(s - s0)
+            results["exergia"] = from_SI("exergia", ex, output_units["exergia"])
     except:
         results["exergia"] = None
 
     # Viscosidad
     try:
-        val = CP.PropsSI("V", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-        results["mu"] = from_SI("mu", val, output_units["mu"])
+        mu = safe_prop("V")
+        if mu:
+            results["mu"] = from_SI("mu", mu, output_units["mu"])
     except:
         results["mu"] = None
 
-        # cp, cv, k
+    # cp, cv, k
     try:
-        cp = CP.PropsSI("Cpmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-        cv = CP.PropsSI("Cvmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-        k = cp / cv if cv != 0 else None
-        results["cp"] = from_SI("cp", cp, output_units["cp"])
-        results["cv"] = from_SI("cv", cv, output_units["cv"])
+        cp = safe_prop("Cpmass")
+        cv = safe_prop("Cvmass")
+        k = cp / cv if cp is not None and cv not in [0, None] else None
+        if cp is not None:
+            results["cp"] = from_SI("cp", cp, output_units["cp"])
+        if cv is not None:
+            results["cv"] = from_SI("cv", cv, output_units["cv"])
         results["k"] = k
     except:
         results["cp"], results["cv"], results["k"] = None, None, None
+
+    return results
 
 # === Streamlit Interface ===
 st.title("PVT by Greec 🌡️💨")
@@ -418,6 +432,7 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
+
 
 
 
