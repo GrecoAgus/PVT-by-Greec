@@ -295,20 +295,24 @@ if hist:
             else:
                 st.write(f"{display_names.get(k,k)}: No disponible")
 
-# === Gráfico interactivo ===
-st.subheader("Gráfico de propiedades")
-prop_x = st.selectbox("Propiedad eje X", list(to_return.keys()) + extra_props, index=0)
-prop_y = st.selectbox("Propiedad eje Y", list(to_return.keys()) + extra_props, index=1)
+# === Gráfico interactivo plegable ===
+if hist:  # Solo mostrar si hay historial
+    with st.expander("Mostrar Gráfico"):
+        prop_x = st.selectbox("Propiedad eje X", list(to_return.keys()) + extra_props, index=0)
+        prop_y = st.selectbox("Propiedad eje Y", list(to_return.keys()) + extra_props, index=1)
 
-fig = go.Figure()
-for i, h in enumerate(hist):
-    x = h["resultado"].get(prop_x)
-    y = h["resultado"].get(prop_y)
-    if x is not None and y is not None:
-        fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers+lines', name=f"Cálculo {i+1}"))
+        fig = go.Figure()
+        for i, h in enumerate(hist):
+            x = h["resultado"].get(prop_x)
+            y = h["resultado"].get(prop_y)
+            if x is not None and y is not None:
+                fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers+lines', name=f"Cálculo {i+1}"))
 
-fig.update_layout(title=f"{display_names.get(prop_y, prop_y)} vs {display_names.get(prop_x, prop_x)}",
-                  xaxis_title=f"{display_names.get(prop_x, prop_x)} ({output_units[prop_x]})",
-                  yaxis_title=f"{display_names.get(prop_y, prop_y)} ({output_units[prop_y]})",
-                  showlegend=True)
-st.plotly_chart(fig)
+        fig.update_layout(
+            title=f"{display_names.get(prop_y, prop_y)} vs {display_names.get(prop_x, prop_x)}",
+            xaxis_title=f"{display_names.get(prop_x, prop_x)} ({output_units[prop_x]})",
+            yaxis_title=f"{display_names.get(prop_y, prop_y)} ({output_units[prop_y]})",
+            showlegend=True
+        )
+        st.plotly_chart(fig)
+
