@@ -57,13 +57,13 @@ preset_systems = {
         "T": "°C", "P": "Pa", "h": "kJ/kg", "s": "kJ/kgK",
         "u": "kJ/kg", "rho": "kg/m3", "v": "m3/kg", "x": "-",
         "vel_sonido": "m/s", "exergia": "kJ/kg", "mu": "Pa·s",
-        "cp": "J/kgK", "cv": "J/kgK", "k": "-"
+        "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"
     },
     "Imperial": {
         "T": "°F", "P": "psi", "h": "BTU/lb", "s": "BTU/lbR",
         "u": "BTU/lb", "rho": "lb/ft3", "v": "ft3/lb", "x": "-",
         "vel_sonido": "ft/s", "exergia": "BTU/lb", "mu": "lb/(ft·s)",
-        "cp": "J/kgK", "cv": "J/kgK", "k": "-"
+        "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"
     }
 }
 
@@ -269,4 +269,5 @@ if st.button("Calcular"):
             st.write(f"{k} = {v} {output_units[k]}")
         else:
             st.write(f"{k}: No disponible")
+
 
