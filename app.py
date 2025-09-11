@@ -1,5 +1,6 @@
 import streamlit as st
 import CoolProp.CoolProp as CP
+from datetime import datetime
 
 # === Configuración inicial ===
 fluidos = {
@@ -69,7 +70,7 @@ output_units = {k: v[0] for k, v in unit_options.items()}
 T_ref = 15.0
 P_ref = 101325.0
 
-# Funciones de conversión
+# === Funciones de conversión ===
 def to_SI(prop, val, unit):
     try:
         if prop == "T":
@@ -160,6 +161,7 @@ def from_SI(prop, val, unit):
     except:
         return val
 
+# === Función principal ===
 def get_state(prop1, val1, prop2, val2, fluid):
     val1_SI = to_SI(prop1, val1, input_units[prop1])
     val2_SI = to_SI(prop2, val2, input_units[prop2])
@@ -214,42 +216,73 @@ def get_state(prop1, val1, prop2, val2, fluid):
 st.title("PVT by Greec 🌡️💨")
 st.subheader("Calculadora de propiedades termodinámicas")
 
+# --- Fluido ---
 fluido_seleccionado = st.selectbox("Selecciona el fluido", list(fluidos.keys()))
 fluido_cp = fluidos[fluido_seleccionado]
 
+# --- Presets ---
 st.sidebar.header("Configuración rápida")
 preset_choice = st.sidebar.radio("Sistema de unidades", ["Ninguno", "SI", "Imperial"])
 if preset_choice != "Ninguno":
     input_units.update(preset_systems[preset_choice])
     output_units.update(preset_systems[preset_choice])
 
+# --- Unidades ---
 st.sidebar.header("Configuración de unidades")
 st.sidebar.subheader("Entrada")
 for p in list(props.keys()) + extra_props:
-    input_units[p] = st.sidebar.selectbox(f"Unidad ingreso {display_names.get(p,p)}", unit_options[p], 
+    input_units[p] = st.sidebar.selectbox(f"Unidad ingreso {display_names.get(p,p)}", unit_options[p],
                                           index=unit_options[p].index(input_units.get(p, unit_options[p][0])))
 
 st.sidebar.subheader("Salida")
 for p in list(props.keys()) + extra_props:
-    output_units[p] = st.sidebar.selectbox(f"Unidad salida {display_names.get(p,p)}", unit_options[p], 
+    output_units[p] = st.sidebar.selectbox(f"Unidad salida {display_names.get(p,p)}", unit_options[p],
                                            index=unit_options[p].index(output_units.get(p, unit_options[p][0])))
 
+# --- Estado de referencia ---
 st.sidebar.header("Estado referencia exergía")
 T_ref = st.sidebar.number_input("Temperatura referencia [°C]", value=T_ref)
 P_ref = st.sidebar.number_input("Presión referencia [Pa]", value=P_ref)
 
+# --- Propiedades independientes ---
 st.subheader("Propiedades independientes")
 prop1 = st.selectbox("Propiedad 1", list(props.keys()), index=0)
 val1 = st.number_input(f"Valor {display_names.get(prop1, prop1)} ({input_units[prop1]})", value=25.0)
-
 prop2 = st.selectbox("Propiedad 2", list(props.keys()), index=1)
 val2 = st.number_input(f"Valor {display_names.get(prop2, prop2)} ({input_units[prop2]})", value=101325.0)
 
+# --- Inicializar historial ---
+if 'historial' not in st.session_state:
+    st.session_state['historial'] = []
+
+# --- Botón calcular ---
 if st.button("Calcular"):
     res = get_state(prop1, val1, prop2, val2, fluido_cp)
+    # Mostrar resultados principales
     st.subheader("Resultados")
     for k, v in res.items():
         if v is not None:
             st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
         else:
             st.write(f"**{display_names.get(k,k)}**: No disponible")
+    # Guardar en historial
+    if len(st.session_state['historial']) >= 10:
+        st.session_state['historial'].pop(0)
+    st.session_state['historial'].append({
+        "fecha": datetime.now().strftime("%H:%M:%S"),
+        "entrada": {prop1: val1, prop2: val2},
+        "resultado": res
+    })
+
+# --- Historial con slider ---
+if st.session_state['historial']:
+    with st.expander("Mostrar Historial"):
+        hist = st.session_state['historial']
+        # Slider vertical
+        index = st.slider("Selecciona cálculo", 0, len(hist)-1, len(hist)-1, key="slider_historial")
+        st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
+        for k, v in hist[index]["resultado"].items():
+            if v is not None:
+                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
+            else:
+                st.write(f"**{display_names.get(k,k)}**: No disponible")
