@@ -231,7 +231,7 @@ def get_state(prop1, val1, prop2, val2, fluid):
     except:
         results["mu"] = None
 
-    # cp, cv, k
+        # cp, cv, k
     try:
         cp = CP.PropsSI("Cpmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         cv = CP.PropsSI("Cvmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
@@ -240,7 +240,7 @@ def get_state(prop1, val1, prop2, val2, fluid):
         results["cv"] = from_SI("cv", cv, output_units["cv"])
         results["k"] = k
     except:
-        results["]()
+        results["cp"], results["cv"], results["k"] = None, None, None
 
 # === Streamlit Interface ===
 st.title("PVT by Greec 🌡️💨")
@@ -418,6 +418,7 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
+
 
 
 
