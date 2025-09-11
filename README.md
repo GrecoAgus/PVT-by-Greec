@@ -35,8 +35,7 @@ Clonar el repositorio e instalar las dependencias en el entorno.
 
 ## Contacto 
 
-Contacto: pvt.student657@passfwd.com
-Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.
+Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo pvt.student657@passfwd.com para realizar la corrección.
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -75,5 +74,4 @@ Clone the repository and install the dependencies in the environment.
 
 ## Contact
 
-Contact: pvt.student657@passfwd.com
-If you find any bugs, errors, or inconsistencies in the values, or have suggestions for improving the application, please contact the email address provided so we can correct them.
+If you find any bugs, errors, or inconsistencies in the values, or have suggestions for improving the app, please contact pvt.student657@passfwd.com for corrections.
