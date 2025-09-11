@@ -2,9 +2,6 @@ import streamlit as st
 import CoolProp.CoolProp as CP
 
 # === Configuración inicial ===
-# -------------------------
-# Diccionario de fluidos
-# -------------------------
 fluidos = {
     "Agua": "Water",
     "Aire": "Air",
@@ -14,18 +11,9 @@ fluidos = {
     "Etanol": "Ethanol",
 }
 
-available_fluids = ["Water", "Air", "R134a", "Ammonia", "CO2", "Methane"]
-fluid = "Water"
-
 props = {
-    "T": "T",    # Temperatura [K]
-    "P": "P",    # Presión [Pa]
-    "h": "H",    # Entalpía [J/kg]
-    "s": "S",    # Entropía [J/kgK]
-    "u": "U",    # Energía interna [J/kg]
-    "rho": "D",  # Densidad [kg/m3]
-    "v": "D",    # Volumen específico [m3/kg] (1/rho)
-    "x": "Q"     # Título [0-1]
+    "T": "T", "P": "P", "h": "H", "s": "S",
+    "u": "U", "rho": "D", "v": "D", "x": "Q"
 }
 
 to_return = {
@@ -33,25 +21,8 @@ to_return = {
     "u": "U", "rho": "D", "x": "Q"
 }
 
-# Propiedades adicionales
-extra_props = ["vel_sonido", "exergia", "mu"]
+extra_props = ["vel_sonido", "exergia", "mu", "cp", "cv", "k"]
 
-# Nombres para mostrar con símbolos
-display_names = {
-    "T": "T (°C)", 
-    "P": "P (Pa)", 
-    "h": "h (kJ/kg)", 
-    "s": "s (kJ/kgK)", 
-    "u": "u (kJ/kg)", 
-    "rho": "ρ (kg/m³)",      # densidad
-    "v": "v (m³/kg)", 
-    "x": "x (-)",
-    "vel_sonido": "a (m/s)", # velocidad del sonido
-    "exergia": "Ex (kJ/kg)", # exergía
-    "mu": "μ (Pa·s)"         # viscosidad
-}
-
-# Unidades disponibles por propiedad
 unit_options = {
     "T": ["°C", "K", "°F"],
     "P": ["Pa", "kPa", "bar", "atm", "psi"],
@@ -63,32 +34,42 @@ unit_options = {
     "x": ["-"],
     "vel_sonido": ["m/s", "ft/s"],
     "exergia": ["kJ/kg", "BTU/lb"],
-    "mu": ["Pa·s", "cP", "lb/(ft·s)"]
+    "mu": ["Pa·s", "cP", "lb/(ft·s)"],
+    "cp": ["kJ/kgK", "J/kgK", "cal/gK", "kcal/kgK"],
+    "cv": ["kJ/kgK", "J/kgK", "cal/gK", "kcal/kgK"],
+    "k": ["-"]
 }
 
-# === Conjuntos de unidades predefinidos ===
+# Símbolos y nombres estéticos
+display_names = {
+    "T": "T", "P": "P", "h": "h", "s": "s", "u": "u",
+    "rho": "ρ", "v": "v", "x": "x",
+    "vel_sonido": "a", "exergia": "Ex", "mu": "μ",
+    "cp": "Cp", "cv": "Cv", "k": "k"
+}
+
 preset_systems = {
     "SI": {
         "T": "°C", "P": "Pa", "h": "kJ/kg", "s": "kJ/kgK",
         "u": "kJ/kg", "rho": "kg/m3", "v": "m3/kg", "x": "-",
-        "vel_sonido": "m/s", "exergia": "kJ/kg", "mu": "Pa·s"
+        "vel_sonido": "m/s", "exergia": "kJ/kg", "mu": "Pa·s",
+        "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"
     },
     "Imperial": {
         "T": "°F", "P": "psi", "h": "BTU/lb", "s": "BTU/lbR",
         "u": "BTU/lb", "rho": "lb/ft3", "v": "ft3/lb", "x": "-",
-        "vel_sonido": "ft/s", "exergia": "BTU/lb", "mu": "lb/(ft·s)"
+        "vel_sonido": "ft/s", "exergia": "BTU/lb", "mu": "lb/(ft·s)",
+        "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"
     }
 }
 
-# Unidades por defecto para entrada y salida
 input_units = {k: v[0] for k, v in unit_options.items()}
 output_units = {k: v[0] for k, v in unit_options.items()}
 
-# Estado de referencia para exergía
 T_ref = 15.0
 P_ref = 101325.0
 
-# === Funciones de conversión ===
+# Funciones de conversión
 def to_SI(prop, val, unit):
     try:
         if prop == "T":
@@ -102,11 +83,11 @@ def to_SI(prop, val, unit):
             if unit == "atm": return val * 101325
             if unit == "psi": return val * 6894.757
         if prop in ["h", "u"]:
-            if unit in ["kJ/kg"]: return val * 1000
+            if unit == "kJ/kg": return val * 1000
             if unit == "J/kg": return val
             if unit == "BTU/lb": return val * 2326
         if prop == "s":
-            if unit in ["kJ/kgK"]: return val * 1000
+            if unit == "kJ/kgK": return val * 1000
             if unit == "J/kgK": return val
             if unit == "BTU/lbR": return val * 4186.8
         if prop == "rho":
@@ -125,9 +106,14 @@ def to_SI(prop, val, unit):
             if unit == "Pa·s": return val
             if unit == "cP": return val / 1000
             if unit == "lb/(ft·s)": return val / 47.8803
+        if prop in ["cp", "cv"]:
+            if unit == "J/kgK": return val
+            if unit == "kJ/kgK": return val * 1000
+            if unit == "cal/gK": return val * 4186.8
+            if unit == "kcal/kgK": return val * 4186.8
+        return val
     except:
         return val
-    return val
 
 def from_SI(prop, val, unit):
     try:
@@ -165,11 +151,15 @@ def from_SI(prop, val, unit):
             if unit == "Pa·s": return val
             if unit == "cP": return val * 1000
             if unit == "lb/(ft·s)": return val * 47.8803
+        if prop in ["cp", "cv"]:
+            if unit == "J/kgK": return val
+            if unit == "kJ/kgK": return val / 1000
+            if unit == "cal/gK": return val / 4186.8
+            if unit == "kcal/kgK": return val / 4186.8
+        return val
     except:
         return val
-    return val
 
-# === Función principal ===
 def get_state(prop1, val1, prop2, val2, fluid):
     val1_SI = to_SI(prop1, val1, input_units[prop1])
     val2_SI = to_SI(prop2, val2, input_units[prop2])
@@ -207,54 +197,59 @@ def get_state(prop1, val1, prop2, val2, fluid):
     except:
         results["mu"] = None
 
+    # cp, cv, k
+    try:
+        cp = CP.PropsSI("Cpmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        cv = CP.PropsSI("Cvmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        k = cp / cv if cv != 0 else None
+        results["cp"] = from_SI("cp", cp, output_units["cp"])
+        results["cv"] = from_SI("cv", cv, output_units["cv"])
+        results["k"] = k
+    except:
+        results["cp"], results["cv"], results["k"] = None, None, None
+
     return results
 
 # === Interfaz Streamlit ===
 st.title("PVT by Greec 🌡️💨")
 st.subheader("Calculadora de propiedades termodinámicas")
 
-# --- Selección de fluido ---
 fluido_seleccionado = st.selectbox("Selecciona el fluido", list(fluidos.keys()))
 fluido_cp = fluidos[fluido_seleccionado]
 
-# --- Configuración de conjuntos ---
-st.sidebar.header("Configuración rápida (conjuntos)")
-preset_choice = st.sidebar.radio("Seleccionar sistema de unidades", ["Ninguno", "SI", "Imperial"])
+st.sidebar.header("Configuración rápida")
+preset_choice = st.sidebar.radio("Sistema de unidades", ["Ninguno", "SI", "Imperial"])
 if preset_choice != "Ninguno":
     input_units.update(preset_systems[preset_choice])
     output_units.update(preset_systems[preset_choice])
 
-# --- Configuración detallada ---
 st.sidebar.header("Configuración de unidades")
 st.sidebar.subheader("Entrada")
-for p in props.keys() | set(extra_props):
-    input_units[p] = st.sidebar.selectbox(f"Unidad de ingreso {display_names.get(p,p)}", unit_options[p], 
+for p in list(props.keys()) + extra_props:
+    input_units[p] = st.sidebar.selectbox(f"Unidad ingreso {display_names.get(p,p)}", unit_options[p], 
                                           index=unit_options[p].index(input_units.get(p, unit_options[p][0])))
 
 st.sidebar.subheader("Salida")
-for p in props.keys() | set(extra_props):
-    output_units[p] = st.sidebar.selectbox(f"Unidad de salida {display_names.get(p,p)}", unit_options[p], 
+for p in list(props.keys()) + extra_props:
+    output_units[p] = st.sidebar.selectbox(f"Unidad salida {display_names.get(p,p)}", unit_options[p], 
                                            index=unit_options[p].index(output_units.get(p, unit_options[p][0])))
 
-# Estado de referencia exergía
-st.sidebar.header("Estado de referencia exergía")
+st.sidebar.header("Estado referencia exergía")
 T_ref = st.sidebar.number_input("Temperatura referencia [°C]", value=T_ref)
 P_ref = st.sidebar.number_input("Presión referencia [Pa]", value=P_ref)
 
-# --- Selección de propiedades independientes ---
-st.subheader("Selección de propiedades independientes")
+st.subheader("Propiedades independientes")
 prop1 = st.selectbox("Propiedad 1", list(props.keys()), index=0)
-val1 = st.number_input(f"Valor {display_names.get(prop1,prop1)} ({input_units[prop1]})", value=25.0)
+val1 = st.number_input(f"Valor {display_names.get(prop1, prop1)} ({input_units[prop1]})", value=25.0)
 
 prop2 = st.selectbox("Propiedad 2", list(props.keys()), index=1)
-val2 = st.number_input(f"Valor {display_names.get(prop2,prop2)} ({input_units[prop2]})", value=101325.0)
+val2 = st.number_input(f"Valor {display_names.get(prop2, prop2)} ({input_units[prop2]})", value=101325.0)
 
-# --- Botón calcular ---
 if st.button("Calcular"):
     res = get_state(prop1, val1, prop2, val2, fluido_cp)
     st.subheader("Resultados")
     for k, v in res.items():
         if v is not None:
-            st.write(f"{display_names.get(k,k)} = {v} {output_units[k]}")
+            st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
         else:
-            st.write(f"{display_names.get(k,k)}: No disponible")
+            st.write(f"**{display_names.get(k,k)}**: No disponible")
