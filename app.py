@@ -275,25 +275,35 @@ if st.button("Calcular"):
     })
 
 # --- Historial con slider ---
+# --- Historial con slider vertical (opcional) ---
 hist = st.session_state.get('historial', [])
 
 if hist:  # Solo si hay al menos un cálculo
     with st.expander("Mostrar Historial"):
-        max_index = int(len(hist)-1)
+        max_index = len(hist) - 1  # índice máximo válido
+        # Slider vertical (step=1, enteros)
         index = st.slider(
             "Selecciona cálculo",
             min_value=0,
             max_value=max_index,
-            value=max_index if max_index >= 0 else 0,
+            value=max_index,  # mostrar el último cálculo por defecto
             step=1,
             key="slider_historial"
         )
+
         st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
+        st.write("**Entradas:**")
+        for prop, val in hist[index]["entrada"].items():
+            st.write(f"{display_names.get(prop, prop)} = {val} {input_units[prop]}")
+        
+        st.write("**Resultados:**")
         for k, v in hist[index]["resultado"].items():
             if v is not None:
                 st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
             else:
                 st.write(f"**{display_names.get(k,k)}**: No disponible")
+
+
 
 
 
