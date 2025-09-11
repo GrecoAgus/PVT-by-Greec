@@ -297,6 +297,8 @@ if hist:
                 st.write(f"{display_names.get(k,k)}: No disponible")
 
 # === Gráfico interactivo plegable ===
+import numpy as np  # <--- asegurate de importar numpy
+
 with st.expander("Mostrar Gráfico"):
     # Limitamos las opciones
     grafico_tipo = st.selectbox("Selecciona diagrama", ["T vs S", "P vs v"])
@@ -310,10 +312,11 @@ with st.expander("Mostrar Gráfico"):
         T_vals = np.linspace(T_triple + 0.01, T_crit - 0.01, 100)  # rango de temperatura
 
         if grafico_tipo == "T vs S":
+            # Curva de saturación
             S_liq = [CP.PropsSI('S', 'T', T, 'Q', 0, fluid) for T in T_vals]
             S_vap = [CP.PropsSI('S', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
-            # Convertir unidades
+            # Convertir solo la curva de saturación a unidades de salida
             T_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
             S_liq_plot = [from_SI("s", s, output_units["s"]) for s in S_liq]
             S_vap_plot = [from_SI("s", s, output_units["s"]) for s in S_vap]
@@ -322,13 +325,18 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=S_vap_plot, y=T_plot, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
 
+            # Puntos del historial (ya están en unidades de salida)
+            x_vals = [h["resultado"].get("s") for h in hist if h["resultado"].get("s") is not None]
+            y_vals = [h["resultado"].get("T") for h in hist if h["resultado"].get("T") is not None]
+
         elif grafico_tipo == "P vs v":
+            # Curva de saturación
             P_liq = [CP.PropsSI('P', 'T', T, 'Q', 0, fluid) for T in T_vals]
             P_vap = [CP.PropsSI('P', 'T', T, 'Q', 1, fluid) for T in T_vals]
             v_liq = [1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid) for T in T_vals]  # v = 1/ρ
             v_vap = [1/CP.PropsSI('D', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
-            # Convertir unidades
+            # Convertir solo la curva de saturación a unidades de salida
             P_liq_plot = [from_SI("P", P, output_units["P"]) for P in P_liq]
             P_vap_plot = [from_SI("P", P, output_units["P"]) for P in P_vap]
             v_liq_plot = [from_SI("v", v, output_units["v"]) for v in v_liq]
@@ -338,28 +346,56 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=v_vap_plot, y=P_vap_plot, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
 
+            # Puntos del historial (ya están en unidades de salida)
+            x_vals = [h["resultado"].get("v") for h in hist if h["resultado"].get("v") is not None]
+            y_vals = [h["resultado"].get("P") for h in hist if h["resultado"].get("P") is not None]
+
+        # Puntos del historial con numeritos
+        if x_vals and y_vals:
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=y_vals,
+                mode='markers+text',
+                text=[str(i) for i in range(len(x_vals))],
+                textposition="top right",
+                marker=dict(size=8, color='red'),
+                name="Historial"
+            ))
+
+            # Flechas que unen puntos consecutivos
+            for i in range(len(x_vals)-1):
+                fig.add_annotation(
+                    x=x_vals[i+1],
+                    y=y_vals[i+1],
+                    ax=x_vals[i],
+                    ay=y_vals[i],
+                    xref="x",
+                    yref="y",
+                    axref="x",
+                    ayref="y",
+                    showarrow=True,
+                    arrowhead=3,
+                    arrowsize=1,
+                    arrowwidth=1.5,
+                    arrowcolor="green"
+                )
+
+        # Leyenda sobre flechas en esquina superior derecha
+        fig.add_annotation(
+            xref="paper", yref="paper",
+            x=1.0, y=1.0,
+            showarrow=False,
+            text="Flechas: sentido de desplazamiento",
+            font=dict(size=12, color="black"),
+            align="right",
+            bgcolor="rgba(255,255,255,0.7)",
+            bordercolor="black",
+            borderwidth=1,
+            borderpad=2
+        )
+
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
 
-    # Si hay historial, agregar puntos con número y flechas
-    for i, h in enumerate(hist):
-        if grafico_tipo == "T vs S":
-            x = h["resultado"].get("s")
-            y = h["resultado"].get("T")
-        elif grafico_tipo == "P vs v":
-            x = h["resultado"].get("v")
-            y = h["resultado"].get("P")
-        if x is not None and y is not None:
-            fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers+text',
-                                     text=[str(i)], textposition="top right",
-                                     name=f"Cálculo {i}"))
+    st.plotly_chart(fig)
 
-            # Dibujar flecha desde punto anterior
-            if i > 0:
-                if grafico_tipo == "T vs S":
-                    x_prev = hist[i-1]["resultado"].get("s")
-                    y_prev = hist[i-1]["resultado"].get("T")
-                elif grafico_tipo == "P vs v":
-                    x_prev = hist[i-1]["resultado"].get("v")
-                    y_prev = hist[i-1]["resultado"].get("P")
-                if x_prev is not None and y_prev is not None:
