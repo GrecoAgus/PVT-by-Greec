@@ -308,11 +308,40 @@ with st.expander("Mostrar Gráfico"):
             y = h["resultado"].get(prop_y)
             if x is not None and y is not None:
                 fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers+lines', name=f"Cálculo {i+1}"))
-    else:  # Si no hay historial, mostramos una curva genérica
+    else:  # Si no hay historial, graficamos la curva de saturación del fluido seleccionado
         import numpy as np
-        x_vals = np.linspace(0, 100, 50)  # ejemplo: 50 puntos de 0 a 100
-        y_vals = x_vals * 0.8 + 10        # ejemplo: curva lineal genérica
-        fig.add_trace(go.Scatter(x=x_vals, y=y_vals, mode='lines', name="Curva genérica"))
+
+        try:
+            fluid = fluido_cp
+            T_triple = CP.PropsSI('Ttriple', fluid)
+            T_crit = CP.PropsSI('Tcrit', fluid)
+            T_vals = np.linspace(T_triple + 0.01, T_crit - 0.01, 100)  # rango temperatura
+            P_liq = [CP.PropsSI('P', 'T', T, 'Q', 0, fluid) for T in T_vals]  # líquido saturado
+            P_vap = [CP.PropsSI('P', 'T', T, 'Q', 1, fluid) for T in T_vals]  # vapor saturado
+
+            # Convertimos a las unidades seleccionadas
+            if prop_x == "T":
+                T_vals_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
+            elif prop_x == "P":
+                T_vals_plot = [from_SI("P", P, output_units["P"]) for P in P_liq]  # solo ejemplo
+            else:
+                T_vals_plot = T_vals  # se puede mejorar para otros ejes
+
+            if prop_y == "P":
+                P_liq_plot = [from_SI("P", P, output_units["P"]) for P in P_liq]
+                P_vap_plot = [from_SI("P", P, output_units["P"]) for P in P_vap]
+            elif prop_y == "T":
+                P_liq_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
+                P_vap_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
+            else:
+                P_liq_plot = P_liq
+                P_vap_plot = P_vap
+
+            fig.add_trace(go.Scatter(x=T_vals_plot, y=P_liq_plot, mode='lines', name="Líquido saturado"))
+            fig.add_trace(go.Scatter(x=T_vals_plot, y=P_vap_plot, mode='lines', name="Vapor saturado"))
+
+        except Exception as e:
+            st.write("No se pudo generar la curva de saturación:", e)
 
     fig.update_layout(
         title=f"{display_names.get(prop_y, prop_y)} vs {display_names.get(prop_x, prop_x)}",
@@ -321,4 +350,3 @@ with st.expander("Mostrar Gráfico"):
         showlegend=True
     )
     st.plotly_chart(fig)
-
