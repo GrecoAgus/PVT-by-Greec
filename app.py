@@ -4,6 +4,7 @@ from datetime import datetime
 import pytz  # Para manejar zona horaria
 
 # === Configuración inicial ===
+# Diccionario básico de fluidos para CoolProp
 fluidos = {
     "Agua": "Water",
     "Aire": "Air",
@@ -11,7 +12,26 @@ fluidos = {
     "Amoníaco": "Ammonia",
     "Metano": "Methane",
     "Etanol": "Ethanol",
+    # Otros fluidos se agregan desde la lista completa más abajo
 }
+
+# Lista completa de fluidos de CoolProp organizados por uso
+fluido_lista_organizada = [
+    "--- Muy usados ---",
+    "Agua", "Aire", "Dióxido de Carbono", "Amoníaco", "Metano", "Oxígeno", "Nitrógeno", "Helio",
+    "--- REFRIGERANTES ---",
+    "R134a", "R22", "R404A", "R407C", "R410A", "R1234yf", "R1234ze(E)", "R600a", "R290",
+    "--- Química / Industria ---",
+    "Acetone", "Ethanol", "Benzene", "Toluene", "o-Xylene", "m-Xylene", "p-Xylene", "SulfurDioxide",
+    "--- Gas ideal / Laboratorio ---",
+    "Hydrogen", "Deuterium", "OrthoHydrogen", "ParaHydrogen", "OrthoDeuterium", "ParaDeuterium",
+    "Neon", "Argon", "Xenon", "Krypton"
+]
+
+# Rellenamos el diccionario de fluidos con los fluidos de la lista completa
+for f in fluido_lista_organizada:
+    if not f.startswith("---") and f not in fluidos:
+        fluidos[f] = f  # Nombre usado como key de CoolProp directamente
 
 props = {
     "T": "T", "P": "P", "h": "H", "s": "S",
@@ -218,7 +238,17 @@ st.title("PVT by Greec 🌡️💨")
 st.subheader("Calculadora de propiedades termodinámicas")
 
 # --- Fluido ---
-fluido_seleccionado = st.selectbox("Selecciona el fluido", list(fluidos.keys()))
+# Selección con títulos
+fluido_seleccionado = st.selectbox(
+    "Selecciona el fluido",
+    fluido_lista_organizada,
+    index=fluido_lista_organizada.index("Agua")  # Agua por defecto
+)
+
+# Evitar que se seleccionen títulos
+if fluido_seleccionado.startswith("---"):
+    fluido_seleccionado = "Agua"
+
 fluido_cp = fluidos[fluido_seleccionado]
 
 # --- Presets ---
@@ -232,13 +262,19 @@ if preset_choice != "Ninguno":
 st.sidebar.header("Configuración de unidades")
 st.sidebar.subheader("Entrada")
 for p in list(props.keys()) + extra_props:
-    input_units[p] = st.sidebar.selectbox(f"Unidad ingreso {display_names.get(p,p)}", unit_options[p],
-                                          index=unit_options[p].index(input_units.get(p, unit_options[p][0])))
+    input_units[p] = st.sidebar.selectbox(
+        f"Unidad ingreso {display_names.get(p,p)}",
+        unit_options[p],
+        index=unit_options[p].index(input_units.get(p, unit_options[p][0]))
+    )
 
 st.sidebar.subheader("Salida")
 for p in list(props.keys()) + extra_props:
-    output_units[p] = st.sidebar.selectbox(f"Unidad salida {display_names.get(p,p)}", unit_options[p],
-                                           index=unit_options[p].index(output_units.get(p, unit_options[p][0])))
+    output_units[p] = st.sidebar.selectbox(
+        f"Unidad salida {display_names.get(p,p)}",
+        unit_options[p],
+        index=unit_options[p].index(output_units.get(p, unit_options[p][0]))
+    )
 
 # --- Estado de referencia ---
 st.sidebar.header("Estado referencia exergía")
@@ -279,25 +315,21 @@ if st.button("Calcular"):
     })
 
 # --- Historial con slider ---
-# --- Historial con slider ---
 hist = st.session_state.get('historial', [])
-
-if hist:  # Solo si hay al menos un cálculo
+if hist:
     with st.expander("Mostrar Historial"):
         max_index = len(hist) - 1
-        # Solo crear slider si hay más de 1 cálculo
         if len(hist) > 1:
             index = st.slider(
                 "Selecciona cálculo",
                 min_value=0,
                 max_value=max_index,
-                value=max_index,  # mostrar el último cálculo por defecto
+                value=max_index,
                 step=1,
                 key="slider_historial"
             )
         else:
-            index = 0  # si solo hay un cálculo, no hay slider
-
+            index = 0
         st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
         st.write("**Entradas:**")
         for prop, val in hist[index]["entrada"].items():
@@ -305,7 +337,6 @@ if hist:  # Solo si hay al menos un cálculo
         st.write("**Resultados:**")
         for k, v in hist[index]["resultado"].items():
             if v is not None:
-                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
+                st.write(f"{display_names.get(k,k)} = {v:.5g} {output_units[k]}")
             else:
-                st.write(f"**{display_names.get(k,k)}**: No disponible")
-
+                st.write(f"{display_names.get(k,k)}: No disponible")
