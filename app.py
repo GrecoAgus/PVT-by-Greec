@@ -305,9 +305,19 @@ P_ref = st.sidebar.number_input("Presión referencia [Pa]", value=P_ref)
 # Propiedades independientes
 st.subheader("Propiedades independientes")
 prop1 = st.selectbox("Propiedad 1", list(props.keys()), index=0)
-val1 = st.number_input(f"Valor {display_names.get(prop1, prop1)} ({input_units[prop1]})", value=25.0)
+val1_str = st.text_input(f"Valor {display_names.get(prop1, prop1)} ({input_units[prop1]})", value="25.0")
+try:
+    val1 = float(val1_str.replace(',', '.'))
+except:
+    val1 = 0.0
+
 prop2 = st.selectbox("Propiedad 2", list(props.keys()), index=1)
-val2 = st.number_input(f"Valor {display_names.get(prop2, prop2)} ({input_units[prop2]})", value=101325.0)
+val2_str = st.text_input(f"Valor {display_names.get(prop2, prop2)} ({input_units[prop2]})", value="101325.0")
+try:
+    val2 = float(val2_str.replace(',', '.'))
+except:
+    val2 = 0.0
+
 
 # Inicializar historial
 if 'historial' not in st.session_state:
@@ -450,6 +460,7 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
