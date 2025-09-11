@@ -2,6 +2,19 @@ import streamlit as st
 import CoolProp.CoolProp as CP
 
 # === Configuración inicial ===
+# -------------------------
+# Diccionario de fluidos
+# -------------------------
+fluidos = {
+    "Agua": "Water",
+    "Aire": "Air",
+    "Dióxido de Carbono": "CO2",
+    "Amoníaco": "Ammonia",
+    "Metano": "Methane",
+    "Etanol": "Ethanol",
+}
+# -------------------------
+
 available_fluids = ["Water", "Air", "R134a", "Ammonia", "CO2", "Methane"]
 fluid = "Water"
 
@@ -187,7 +200,8 @@ st.title("PVT by Greec 🌡️💨")
 st.subheader("Calculadora de propiedades termodinámicas")
 
 # --- Selección de fluido ---
-fluid = st.selectbox("Selecciona el fluido", available_fluids, index=0)
+fluido_seleccionado = st.selectbox("Selecciona el fluido", list(fluidos.keys()))
+fluido_cp = fluidos[fluido_seleccionado]
 
 # --- Configuración de conjuntos ---
 st.sidebar.header("Configuración rápida (conjuntos)")
@@ -230,3 +244,4 @@ if st.button("Calcular"):
             st.write(f"{k} = {v} {output_units[k]}")
         else:
             st.write(f"{k}: No disponible")
+
