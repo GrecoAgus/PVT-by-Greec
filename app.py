@@ -445,6 +445,11 @@ with st.expander("Mostrar Gráfico"):
 
     st.plotly_chart(fig)
 
+# === Sección de contacto ===
+with st.expander("Contacto"):
+    st.write("**Creador:** Greco Agustin")
+    st.write("**Contacto:** pvt.student657@passfwd.com")
+
 
 
 
