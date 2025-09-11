@@ -37,3 +37,43 @@ Clonar el repositorio e instalar las dependencias en el entorno.
 
 Contacto: pvt.student657@passfwd.com
 Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Interactive web application developed in **Python + Streamlit** that allows you to calculate the thermodynamic properties of different fluids using the **CoolProp** library.
+The app includes tools for entering pairs of independent properties and obtaining the remaining states, viewing calculation history, and graphing thermodynamic curves.
+
+---
+
+## ✨ Main Features
+
+- **Fluid Selection**: Quick access to the most commonly used fluids (e.g., water) and a complete list of refrigerants and other CoolProp fluids.
+- **State Calculation**: Allows you to enter different pairs of properties (P, T, h, u, s, v) to define a thermodynamic state.
+- **History**: Saves the last 10 calculations with a visualization option.
+- **Interactive Graphs**:
+- **T–s** diagram (temperature vs. entropy).
+- **P–v** diagram (pressure vs. specific volume).
+- Saturation curve + calculated points + arrows showing the calculation order.
+- **Support for inputs with decimal points** (example: `25.0`).
+- **Contact section** optional in the interface.
+
+---
+
+## 🛠️ Technologies used
+
+- [Python 3](https://www.python.org/)
+- [Streamlit](https://streamlit.io/)
+- [CoolProp](http://www.coolprop.org/)
+- [Matplotlib](https://matplotlib.org/)
+- [SciPy](https://scipy.org/)
+
+---
+
+## 🚀 Local execution
+
+Clone the repository and install the dependencies in the environment.
+
+## Contact
+
+Contact: pvt.student657@passfwd.com
+If you find any bugs, errors, or inconsistencies in the values, or have suggestions for improving the application, please contact the email address provided so we can correct them.
