@@ -3,7 +3,6 @@ import CoolProp.CoolProp as CP
 from datetime import datetime
 import pytz
 import plotly.graph_objects as go
-import plotly.graph_objects as go
 import numpy as np
 
 # === Configuración inicial ===
@@ -298,6 +297,7 @@ if hist:
                 st.write(f"{display_names.get(k,k)}: No disponible")
 
 # === Gráfico interactivo plegable ===
+
 with st.expander("Mostrar Gráfico"):
     # Limitamos las opciones
     grafico_tipo = st.selectbox("Selecciona diagrama", ["T vs S", "P vs v"])
@@ -311,6 +311,7 @@ with st.expander("Mostrar Gráfico"):
         T_vals = np.linspace(T_triple + 0.01, T_crit - 0.01, 100)  # rango de temperatura
 
         if grafico_tipo == "T vs S":
+            # Curva de saturación
             S_liq = [CP.PropsSI('S', 'T', T, 'Q', 0, fluid) for T in T_vals]
             S_vap = [CP.PropsSI('S', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
@@ -323,10 +324,14 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=S_vap_plot, y=T_plot, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
 
+            x_vals = [from_SI("s", h["resultado"].get("s"), output_units["s"]) for h in hist if h["resultado"].get("s") is not None]
+            y_vals = [from_SI("T", h["resultado"].get("T"), output_units["T"]) for h in hist if h["resultado"].get("T") is not None]
+
         elif grafico_tipo == "P vs v":
+            # Curva de saturación
             P_liq = [CP.PropsSI('P', 'T', T, 'Q', 0, fluid) for T in T_vals]
             P_vap = [CP.PropsSI('P', 'T', T, 'Q', 1, fluid) for T in T_vals]
-            v_liq = [1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid) for T in T_vals]
+            v_liq = [1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid) for T in T_vals]  # v = 1/ρ
             v_vap = [1/CP.PropsSI('D', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
             # Convertir unidades
@@ -337,27 +342,46 @@ with st.expander("Mostrar Gráfico"):
 
             fig.add_trace(go.Scatter(x=v_liq_plot, y=P_liq_plot, mode='lines', name="Líquido saturado"))
             fig.add_trace(go.Scatter(x=v_vap_plot, y=P_vap_plot, mode='lines', name="Vapor saturado"))
-            fig.update_layout(
-                xaxis_title=f"v ({output_units['v']})", 
-                yaxis_title=f"P ({output_units['P']})",
-                xaxis_type="log"  
-        )
+            fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
 
+            x_vals = [from_SI("v", h["resultado"].get("v"), output_units["v"]) for h in hist if h["resultado"].get("v") is not None]
+            y_vals = [from_SI("P", h["resultado"].get("P"), output_units["P"]) for h in hist if h["resultado"].get("P") is not None]
+
+        # Puntos del historial con numeritos
+        if x_vals and y_vals:
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=y_vals,
+                mode='markers+text',
+                text=[str(i) for i in range(len(x_vals))],
+                textposition="top right",
+                marker=dict(size=8, color='red'),
+                name="Historial"
+            ))
+
+            # Flechas que unen puntos consecutivos
+            for i in range(len(x_vals)-1):
+                fig.add_annotation(
+                    x=x_vals[i+1],
+                    y=y_vals[i+1],
+                    ax=x_vals[i],
+                    ay=y_vals[i],
+                    xref="x",
+                    yref="y",
+                    axref="x",
+                    ayref="y",
+                    showarrow=True,
+                    arrowhead=3,
+                    arrowsize=1,
+                    arrowwidth=1.5,
+                    arrowcolor="blue"
+                )
 
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
 
-    # Si hay historial, agregar puntos
-    for i, h in enumerate(hist):
-        if grafico_tipo == "T vs S":
-            x = h["resultado"].get("s")
-            y = h["resultado"].get("T")
-        elif grafico_tipo == "P vs v":
-            x = h["resultado"].get("v")
-            y = h["resultado"].get("P")
-        if x is not None and y is not None:
-            fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers', name=f"Cálculo {i+1}"))
-
     st.plotly_chart(fig)
+
+
 
 
