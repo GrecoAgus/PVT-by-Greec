@@ -169,7 +169,6 @@ def from_SI(prop, val, unit):
         return val
 
 # === Función para calcular P a partir de (T,H) o (T,U) ===
-
 def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H"):
     """
     Calcula la presión (Pa) para un valor dado de entalpía o energía interna y temperatura.
@@ -190,6 +189,19 @@ def get_state(prop1, val1, prop2, val2, fluid):
     val1_SI = to_SI(prop1, val1, input_units[prop1])
     val2_SI = to_SI(prop2, val2, input_units[prop2])
     results = {k: None for k in to_return.keys()}  # inicializa todo en None
+
+    # Detectar si necesitamos iterar para obtener P
+    if (prop1 == "T" and prop2 in ["h", "u"]) or (prop2 == "T" and prop1 in ["h", "u"]):
+        T_SI = val1_SI if prop1 == "T" else val2_SI
+        val_SI = val2_SI if prop1 == "T" else val1_SI
+        prop_val = "H" if (prop1 == "h" or prop2 == "h") else "U"
+        P_SI = P_from_T_H_or_U(T_SI, val_SI, fluid, prop=prop_val)
+        if P_SI is None:
+            return results  # si no se puede calcular, devolvemos todo None
+
+        # Ahora usamos T y P para calcular todo
+        val1_SI, val2_SI = T_SI, P_SI
+        prop1, prop2 = "T", "P"
 
     # Función interna para intentar calcular propiedades
     def safe_prop(target):
@@ -432,6 +444,7 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
+
 
 
 
