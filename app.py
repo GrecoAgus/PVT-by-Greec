@@ -1,10 +1,10 @@
 import streamlit as st
 import CoolProp.CoolProp as CP
 from datetime import datetime
-import pytz  # Para manejar zona horaria
+import pytz
+import plotly.graph_objects as go
 
 # === Configuración inicial ===
-# Diccionario básico de fluidos para CoolProp
 fluidos = {
     "Agua": "Water",
     "Aire": "Air",
@@ -12,10 +12,8 @@ fluidos = {
     "Amoníaco": "Ammonia",
     "Metano": "Methane",
     "Etanol": "Ethanol",
-    # Otros fluidos se agregan desde la lista completa más abajo
 }
 
-# Lista completa de fluidos de CoolProp organizados por uso
 fluido_lista_organizada = [
     "--- Muy usados ---",
     "Agua", "Aire", "Dióxido de Carbono", "Amoníaco", "Metano", "Oxígeno", "Nitrógeno", "Helio",
@@ -28,21 +26,12 @@ fluido_lista_organizada = [
     "Neon", "Argon", "Xenon", "Krypton"
 ]
 
-# Rellenamos el diccionario de fluidos con los fluidos de la lista completa
 for f in fluido_lista_organizada:
     if not f.startswith("---") and f not in fluidos:
-        fluidos[f] = f  # Nombre usado como key de CoolProp directamente
+        fluidos[f] = f
 
-props = {
-    "T": "T", "P": "P", "h": "H", "s": "S",
-    "u": "U", "rho": "D", "v": "D", "x": "Q"
-}
-
-to_return = {
-    "T": "T", "P": "P", "h": "H", "s": "S",
-    "u": "U", "rho": "D", "x": "Q"
-}
-
+props = {"T": "T", "P": "P", "h": "H", "s": "S", "u": "U", "rho": "D", "v": "D", "x": "Q"}
+to_return = {"T": "T", "P": "P", "h": "H", "s": "S", "u": "U", "rho": "D", "x": "Q"}
 extra_props = ["vel_sonido", "exergia", "mu", "cp", "cv", "k"]
 
 unit_options = {
@@ -62,7 +51,6 @@ unit_options = {
     "k": ["-"]
 }
 
-# Símbolos y nombres estéticos
 display_names = {
     "T": "T", "P": "P", "h": "h", "s": "s", "u": "u",
     "rho": "ρ", "v": "v", "x": "x",
@@ -71,18 +59,14 @@ display_names = {
 }
 
 preset_systems = {
-    "SI": {
-        "T": "°C", "P": "Pa", "h": "kJ/kg", "s": "kJ/kgK",
-        "u": "kJ/kg", "rho": "kg/m3", "v": "m3/kg", "x": "-",
-        "vel_sonido": "m/s", "exergia": "kJ/kg", "mu": "Pa·s",
-        "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"
-    },
-    "Imperial": {
-        "T": "°F", "P": "psi", "h": "BTU/lb", "s": "BTU/lbR",
-        "u": "BTU/lb", "rho": "lb/ft3", "v": "ft3/lb", "x": "-",
-        "vel_sonido": "ft/s", "exergia": "BTU/lb", "mu": "lb/(ft·s)",
-        "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"
-    }
+    "SI": {"T": "°C", "P": "Pa", "h": "kJ/kg", "s": "kJ/kgK",
+           "u": "kJ/kg", "rho": "kg/m3", "v": "m3/kg", "x": "-",
+           "vel_sonido": "m/s", "exergia": "kJ/kg", "mu": "Pa·s",
+           "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"},
+    "Imperial": {"T": "°F", "P": "psi", "h": "BTU/lb", "s": "BTU/lbR",
+                 "u": "BTU/lb", "rho": "lb/ft3", "v": "ft3/lb", "x": "-",
+                 "vel_sonido": "ft/s", "exergia": "BTU/lb", "mu": "lb/(ft·s)",
+                 "cp": "kJ/kgK", "cv": "kJ/kgK", "k": "-"}
 }
 
 input_units = {k: v[0] for k, v in unit_options.items()}
@@ -233,103 +217,73 @@ def get_state(prop1, val1, prop2, val2, fluid):
 
     return results
 
-# === Interfaz Streamlit ===
+# === Streamlit Interface ===
 st.title("PVT by Greec 🌡️💨")
 st.subheader("Calculadora de propiedades termodinámicas")
 
-# --- Fluido ---
-# Selección con títulos
-fluido_seleccionado = st.selectbox(
-    "Selecciona el fluido",
-    fluido_lista_organizada,
-    index=fluido_lista_organizada.index("Agua")  # Agua por defecto
-)
-
-# Evitar que se seleccionen títulos
+# Fluido
+fluido_seleccionado = st.selectbox("Selecciona el fluido", fluido_lista_organizada,
+                                   index=fluido_lista_organizada.index("Agua"))
 if fluido_seleccionado.startswith("---"):
     fluido_seleccionado = "Agua"
-
 fluido_cp = fluidos[fluido_seleccionado]
 
-# --- Presets ---
+# Presets
 st.sidebar.header("Configuración rápida")
 preset_choice = st.sidebar.radio("Sistema de unidades", ["Ninguno", "SI", "Imperial"])
 if preset_choice != "Ninguno":
     input_units.update(preset_systems[preset_choice])
     output_units.update(preset_systems[preset_choice])
 
-# --- Unidades ---
+# Unidades
 st.sidebar.header("Configuración de unidades")
 st.sidebar.subheader("Entrada")
 for p in list(props.keys()) + extra_props:
-    input_units[p] = st.sidebar.selectbox(
-        f"Unidad ingreso {display_names.get(p,p)}",
-        unit_options[p],
-        index=unit_options[p].index(input_units.get(p, unit_options[p][0]))
-    )
-
+    input_units[p] = st.sidebar.selectbox(f"Unidad ingreso {display_names.get(p,p)}",
+                                          unit_options[p], index=unit_options[p].index(input_units.get(p, unit_options[p][0])))
 st.sidebar.subheader("Salida")
 for p in list(props.keys()) + extra_props:
-    output_units[p] = st.sidebar.selectbox(
-        f"Unidad salida {display_names.get(p,p)}",
-        unit_options[p],
-        index=unit_options[p].index(output_units.get(p, unit_options[p][0]))
-    )
+    output_units[p] = st.sidebar.selectbox(f"Unidad salida {display_names.get(p,p)}",
+                                           unit_options[p], index=unit_options[p].index(output_units.get(p, unit_options[p][0])))
 
-# --- Estado de referencia ---
+# Estado de referencia
 st.sidebar.header("Estado referencia exergía")
 T_ref = st.sidebar.number_input("Temperatura referencia [°C]", value=T_ref)
 P_ref = st.sidebar.number_input("Presión referencia [Pa]", value=P_ref)
 
-# --- Propiedades independientes ---
+# Propiedades independientes
 st.subheader("Propiedades independientes")
 prop1 = st.selectbox("Propiedad 1", list(props.keys()), index=0)
 val1 = st.number_input(f"Valor {display_names.get(prop1, prop1)} ({input_units[prop1]})", value=25.0)
 prop2 = st.selectbox("Propiedad 2", list(props.keys()), index=1)
 val2 = st.number_input(f"Valor {display_names.get(prop2, prop2)} ({input_units[prop2]})", value=101325.0)
 
-# --- Inicializar historial ---
+# Inicializar historial
 if 'historial' not in st.session_state:
     st.session_state['historial'] = []
 
-# Definir zona horaria Buenos Aires
 tz = pytz.timezone("America/Argentina/Buenos_Aires")
 
-# --- Botón calcular ---
+# Calcular
 if st.button("Calcular"):
     res = get_state(prop1, val1, prop2, val2, fluido_cp)
-    # Mostrar resultados principales
     st.subheader("Resultados")
     for k, v in res.items():
         if v is not None:
             st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
         else:
             st.write(f"**{display_names.get(k,k)}**: No disponible")
-    # Guardar en historial
     if len(st.session_state['historial']) >= 10:
         st.session_state['historial'].pop(0)
-    st.session_state['historial'].append({
-        "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
-        "entrada": {prop1: val1, prop2: val2},
-        "resultado": res
-    })
+    st.session_state['historial'].append({"fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
+                                          "entrada": {prop1: val1, prop2: val2}, "resultado": res})
 
-# --- Historial con slider ---
+# Historial
 hist = st.session_state.get('historial', [])
 if hist:
     with st.expander("Mostrar Historial"):
         max_index = len(hist) - 1
-        if len(hist) > 1:
-            index = st.slider(
-                "Selecciona cálculo",
-                min_value=0,
-                max_value=max_index,
-                value=max_index,
-                step=1,
-                key="slider_historial"
-            )
-        else:
-            index = 0
+        index = st.slider("Selecciona cálculo", 0, max_index, max_index, key="slider_historial") if len(hist) > 1 else 0
         st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
         st.write("**Entradas:**")
         for prop, val in hist[index]["entrada"].items():
@@ -340,3 +294,21 @@ if hist:
                 st.write(f"{display_names.get(k,k)} = {v:.5g} {output_units[k]}")
             else:
                 st.write(f"{display_names.get(k,k)}: No disponible")
+
+# === Gráfico interactivo ===
+st.subheader("Gráfico de propiedades")
+prop_x = st.selectbox("Propiedad eje X", list(to_return.keys()) + extra_props, index=0)
+prop_y = st.selectbox("Propiedad eje Y", list(to_return.keys()) + extra_props, index=1)
+
+fig = go.Figure()
+for i, h in enumerate(hist):
+    x = h["resultado"].get(prop_x)
+    y = h["resultado"].get(prop_y)
+    if x is not None and y is not None:
+        fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers+lines', name=f"Cálculo {i+1}"))
+
+fig.update_layout(title=f"{display_names.get(prop_y, prop_y)} vs {display_names.get(prop_x, prop_x)}",
+                  xaxis_title=f"{display_names.get(prop_x, prop_x)} ({output_units[prop_x]})",
+                  yaxis_title=f"{display_names.get(prop_y, prop_y)} ({output_units[prop_y]})",
+                  showlegend=True)
+st.plotly_chart(fig)
