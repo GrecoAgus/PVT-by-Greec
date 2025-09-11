@@ -3,8 +3,7 @@ import CoolProp.CoolProp as CP
 
 # === Configuración inicial ===
 # -------------------------
-# Diccionario de fluidos
-# -------------------------
+# Diccionario de fluidos (en español)
 fluidos = {
     "Agua": "Water",
     "Aire": "Air",
@@ -14,9 +13,6 @@ fluidos = {
     "Etanol": "Ethanol",
 }
 # -------------------------
-
-available_fluids = ["Water", "Air", "R134a", "Ammonia", "CO2", "Methane"]
-fluid = "Water"
 
 props = {
     "T": "T",    # Temperatura [K]
@@ -35,7 +31,7 @@ to_return = {
 }
 
 # Propiedades adicionales
-extra_props = ["vel_sonido", "exergia", "mu"]
+extra_props = ["vel_sonido", "exergia", "mu", "cp", "cv", "k"]
 
 # Unidades disponibles por propiedad
 unit_options = {
@@ -49,7 +45,10 @@ unit_options = {
     "x": ["-"],
     "vel_sonido": ["m/s", "ft/s"],
     "exergia": ["kJ/kg", "BTU/lb"],
-    "mu": ["Pa·s", "cP", "lb/(ft·s)"]
+    "mu": ["Pa·s", "cP", "lb/(ft·s)"],
+    "cp": ["J/kgK"],  # se dejan en SI
+    "cv": ["J/kgK"],
+    "k": ["-"]
 }
 
 # === Conjuntos de unidades predefinidos ===
@@ -57,12 +56,14 @@ preset_systems = {
     "SI": {
         "T": "°C", "P": "Pa", "h": "kJ/kg", "s": "kJ/kgK",
         "u": "kJ/kg", "rho": "kg/m3", "v": "m3/kg", "x": "-",
-        "vel_sonido": "m/s", "exergia": "kJ/kg", "mu": "Pa·s"
+        "vel_sonido": "m/s", "exergia": "kJ/kg", "mu": "Pa·s",
+        "cp": "J/kgK", "cv": "J/kgK", "k": "-"
     },
     "Imperial": {
         "T": "°F", "P": "psi", "h": "BTU/lb", "s": "BTU/lbR",
         "u": "BTU/lb", "rho": "lb/ft3", "v": "ft3/lb", "x": "-",
-        "vel_sonido": "ft/s", "exergia": "BTU/lb", "mu": "lb/(ft·s)"
+        "vel_sonido": "ft/s", "exergia": "BTU/lb", "mu": "lb/(ft·s)",
+        "cp": "J/kgK", "cv": "J/kgK", "k": "-"
     }
 }
 
@@ -88,11 +89,11 @@ def to_SI(prop, val, unit):
             if unit == "atm": return val * 101325
             if unit == "psi": return val * 6894.757
         if prop in ["h", "u"]:
-            if unit in ["kJ/kg"]: return val * 1000
+            if unit == "kJ/kg": return val * 1000
             if unit == "J/kg": return val
             if unit == "BTU/lb": return val * 2326
         if prop == "s":
-            if unit in ["kJ/kgK"]: return val * 1000
+            if unit == "kJ/kgK": return val * 1000
             if unit == "J/kgK": return val
             if unit == "BTU/lbR": return val * 4186.8
         if prop == "rho":
@@ -151,6 +152,8 @@ def from_SI(prop, val, unit):
             if unit == "Pa·s": return val
             if unit == "cP": return val * 1000
             if unit == "lb/(ft·s)": return val * 47.8803
+        if prop in ["cp", "cv", "k"]:
+            return val  # se dejan sin conversión
     except:
         return val
     return val
@@ -192,6 +195,17 @@ def get_state(prop1, val1, prop2, val2, fluid):
         results["mu"] = from_SI("mu", val, output_units["mu"])
     except:
         results["mu"] = None
+
+    # cp, cv y k
+    try:
+        cp = CP.PropsSI("Cpmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        cv = CP.PropsSI("Cvmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        k = cp / cv if cv != 0 else None
+        results["cp"] = from_SI("cp", cp, output_units["cp"])
+        results["cv"] = from_SI("cv", cv, output_units["cv"])
+        results["k"] = from_SI("k", k, output_units["k"]) if k is not None else None
+    except:
+        results["cp"], results["cv"], results["k"] = None, None, None
 
     return results
 
@@ -237,11 +251,10 @@ val2 = st.number_input(f"Valor {prop2} ({input_units[prop2]})", value=101325.0)
 
 # --- Botón calcular ---
 if st.button("Calcular"):
-    res = get_state(prop1, val1, prop2, val2, fluid)
+    res = get_state(prop1, val1, prop2, val2, fluido_cp)
     st.subheader("Resultados")
     for k, v in res.items():
         if v is not None:
             st.write(f"{k} = {v} {output_units[k]}")
         else:
             st.write(f"{k}: No disponible")
-
