@@ -326,7 +326,7 @@ with st.expander("Mostrar Gráfico"):
         elif grafico_tipo == "P vs v":
             P_liq = [CP.PropsSI('P', 'T', T, 'Q', 0, fluid) for T in T_vals]
             P_vap = [CP.PropsSI('P', 'T', T, 'Q', 1, fluid) for T in T_vals]
-            v_liq = [1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid) for T in T_vals]  # v = 1/ρ
+            v_liq = [1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid) for T in T_vals]
             v_vap = [1/CP.PropsSI('D', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
             # Convertir unidades
@@ -337,7 +337,12 @@ with st.expander("Mostrar Gráfico"):
 
             fig.add_trace(go.Scatter(x=v_liq_plot, y=P_liq_plot, mode='lines', name="Líquido saturado"))
             fig.add_trace(go.Scatter(x=v_vap_plot, y=P_vap_plot, mode='lines', name="Vapor saturado"))
-            fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
+            fig.update_layout(
+                xaxis_title=f"v ({output_units['v']})", 
+                yaxis_title=f"P ({output_units['P']})",
+                xaxis_type="log"  
+        )
+
 
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
@@ -354,4 +359,5 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=[x], y=[y], mode='markers', name=f"Cálculo {i+1}"))
 
     st.plotly_chart(fig)
+
 
