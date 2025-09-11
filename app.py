@@ -297,6 +297,7 @@ if hist:
                 st.write(f"{display_names.get(k,k)}: No disponible")
 
 # === Gráfico interactivo plegable ===
+import numpy as np  # <--- asegurate de importar numpy
 
 with st.expander("Mostrar Gráfico"):
     # Limitamos las opciones
@@ -315,7 +316,7 @@ with st.expander("Mostrar Gráfico"):
             S_liq = [CP.PropsSI('S', 'T', T, 'Q', 0, fluid) for T in T_vals]
             S_vap = [CP.PropsSI('S', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
-            # Convertir unidades
+            # Convertir solo la curva de saturación a unidades de salida
             T_plot = [from_SI("T", T, output_units["T"]) for T in T_vals]
             S_liq_plot = [from_SI("s", s, output_units["s"]) for s in S_liq]
             S_vap_plot = [from_SI("s", s, output_units["s"]) for s in S_vap]
@@ -324,8 +325,9 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=S_vap_plot, y=T_plot, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
 
-            x_vals = [from_SI("s", h["resultado"].get("s"), output_units["s"]) for h in hist if h["resultado"].get("s") is not None]
-            y_vals = [from_SI("T", h["resultado"].get("T"), output_units["T"]) for h in hist if h["resultado"].get("T") is not None]
+            # Puntos del historial (ya están en unidades de salida)
+            x_vals = [h["resultado"].get("s") for h in hist if h["resultado"].get("s") is not None]
+            y_vals = [h["resultado"].get("T") for h in hist if h["resultado"].get("T") is not None]
 
         elif grafico_tipo == "P vs v":
             # Curva de saturación
@@ -334,7 +336,7 @@ with st.expander("Mostrar Gráfico"):
             v_liq = [1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid) for T in T_vals]  # v = 1/ρ
             v_vap = [1/CP.PropsSI('D', 'T', T, 'Q', 1, fluid) for T in T_vals]
 
-            # Convertir unidades
+            # Convertir solo la curva de saturación a unidades de salida
             P_liq_plot = [from_SI("P", P, output_units["P"]) for P in P_liq]
             P_vap_plot = [from_SI("P", P, output_units["P"]) for P in P_vap]
             v_liq_plot = [from_SI("v", v, output_units["v"]) for v in v_liq]
@@ -344,8 +346,9 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=v_vap_plot, y=P_vap_plot, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
 
-            x_vals = [from_SI("v", h["resultado"].get("v"), output_units["v"]) for h in hist if h["resultado"].get("v") is not None]
-            y_vals = [from_SI("P", h["resultado"].get("P"), output_units["P"]) for h in hist if h["resultado"].get("P") is not None]
+            # Puntos del historial (ya están en unidades de salida)
+            x_vals = [h["resultado"].get("v") for h in hist if h["resultado"].get("v") is not None]
+            y_vals = [h["resultado"].get("P") for h in hist if h["resultado"].get("P") is not None]
 
         # Puntos del historial con numeritos
         if x_vals and y_vals:
@@ -381,7 +384,3 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig)
-
-
-
-
