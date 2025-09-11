@@ -39,6 +39,9 @@ Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerenc
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 Interactive web application developed in **Python + Streamlit** that allows you to calculate the thermodynamic properties of different fluids using the **CoolProp** library.
 The app includes tools for entering pairs of independent properties and obtaining the remaining states, viewing calculation history, and graphing thermodynamic curves.
 
