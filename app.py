@@ -1,6 +1,7 @@
 import streamlit as st
 import CoolProp.CoolProp as CP
 from datetime import datetime
+import pytz  # Para manejar zona horaria
 
 # === Configuración inicial ===
 fluidos = {
@@ -255,6 +256,9 @@ val2 = st.number_input(f"Valor {display_names.get(prop2, prop2)} ({input_units[p
 if 'historial' not in st.session_state:
     st.session_state['historial'] = []
 
+# Definir zona horaria Buenos Aires
+tz = pytz.timezone("America/Argentina/Buenos_Aires")
+
 # --- Botón calcular ---
 if st.button("Calcular"):
     res = get_state(prop1, val1, prop2, val2, fluido_cp)
@@ -269,7 +273,7 @@ if st.button("Calcular"):
     if len(st.session_state['historial']) >= 10:
         st.session_state['historial'].pop(0)
     st.session_state['historial'].append({
-        "fecha": datetime.now().strftime("%H:%M:%S"),
+        "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
         "entrada": {prop1: val1, prop2: val2},
         "resultado": res
     })
@@ -279,36 +283,22 @@ hist = st.session_state.get('historial', [])
 
 if hist:  # Solo si hay al menos un cálculo
     with st.expander("Mostrar Historial"):
-        if len(hist) == 1:
-            # Solo un cálculo, mostrar directamente
-            st.write(f"**Cálculo 1 ({hist[0]['fecha']})**")
-            st.write("**Entradas:**")
-            for prop, val in hist[0]["entrada"].items():
-                st.write(f"{display_names.get(prop, prop)} = {val} {input_units[prop]}")
-            st.write("**Resultados:**")
-            for k, v in hist[0]["resultado"].items():
-                if v is not None:
-                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
-                else:
-                    st.write(f"**{display_names.get(k,k)}**: No disponible")
-        else:
-            # Más de un cálculo, usar slider
-            max_index = len(hist) - 1
-            index = st.slider(
-                "Selecciona cálculo",
-                min_value=0,
-                max_value=max_index,
-                value=max_index,  # mostrar el último cálculo por defecto
-                step=1,
-                key="slider_historial"
-            )
-            st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
-            st.write("**Entradas:**")
-            for prop, val in hist[index]["entrada"].items():
-                st.write(f"{display_names.get(prop, prop)} = {val} {input_units[prop]}")
-            st.write("**Resultados:**")
-            for k, v in hist[index]["resultado"].items():
-                if v is not None:
-                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
-                else:
-                    st.write(f"**{display_names.get(k,k)}**: No disponible")
+        max_index = len(hist) - 1
+        index = st.slider(
+            "Selecciona cálculo",
+            min_value=0,
+            max_value=max_index,
+            value=max_index,  # mostrar el último cálculo por defecto
+            step=1,
+            key="slider_historial"
+        )
+        st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
+        st.write("**Entradas:**")
+        for prop, val in hist[index]["entrada"].items():
+            st.write(f"{display_names.get(prop, prop)} = {val} {input_units[prop]}")
+        st.write("**Resultados:**")
+        for k, v in hist[index]["resultado"].items():
+            if v is not None:
+                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {output_units[k]}")
+            else:
+                st.write(f"**{display_names.get(k,k)}**: No disponible")
