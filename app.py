@@ -5,6 +5,7 @@ import pytz
 import plotly.graph_objects as go
 import numpy as np
 import scipy.optimize as opt
+import math
 
 # === Configuración inicial ===
 fluidos = {
@@ -537,4 +538,5 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
