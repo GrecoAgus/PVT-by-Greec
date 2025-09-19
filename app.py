@@ -443,7 +443,7 @@ if st.button("Calcular"):
             st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
         else:
             st.write(f"**{display_names.get(k,k)}**: No disponible")
-    if len(st.session_state['historial']) >= 10:
+    if len(st.session_state['historial']) >= 20:
         st.session_state['historial'].pop(0)
     st.session_state['historial'].append({
         "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
@@ -597,3 +597,4 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
