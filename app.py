@@ -483,7 +483,6 @@ if liq_todos_none and vap_todos_none:
     """)
 elif P_liq is None and P_vap is None:
     st.error("No se encontraron soluciones para los valores dados")
-        
         else:
             # Búsqueda automática (intenta encontrar una solución)
             P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func)
@@ -701,6 +700,7 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
