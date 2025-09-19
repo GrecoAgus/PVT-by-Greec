@@ -640,7 +640,7 @@ with st.expander("Mostrar Gráfico"):
                 except Exception:
                     v_liq.append(np.nan)
                 try:
-                    d_vap = CP.PropsSI('D', 'T", T, 'Q', 1, fluid)
+                    d_vap = CP.PropsSI('D', 'T', T, 'Q', 1, fluid)
                     v_vap.append(1.0/d_vap if (d_vap is not None and d_vap != 0) else np.nan)
                 except Exception:
                     v_vap.append(np.nan)
@@ -708,3 +708,4 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
