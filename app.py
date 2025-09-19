@@ -208,28 +208,7 @@ def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False, fase=No
         if dentro_campana:
             return CP.PropsSI("P", "T", T_SI, "Q", 0, fluid)
         
-        # si se especifica una fase, buscar solo en esa fase
-        if fase == 'liquido':
-            # Buscar en líquido comprimido (alta presión)
-            def f_liquido(P):
-                return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
-            bracket = find_pressure_bracket(f_liquido, p_min=1e6, p_max=1e9)
-            if bracket:
-                p_lo, p_hi = bracket
-                return opt.brentq(f_liquido, p_lo, p_hi, maxiter=100)
-            return None
-            
-        elif fase == 'vapor':
-            # Buscar en vapor sobrecalentado (baja presión)
-            def f_vapor(P):
-                return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
-            bracket = find_pressure_bracket(f_vapor, p_min=1e3, p_max=1e7)
-            if bracket:
-                p_lo, p_hi = bracket
-                return opt.brentq(f_vapor, p_lo, p_hi, maxiter=100)
-            return None
-        
-        # comprobar si val_SI cae entre liquido y vapor (entonces estado en campana)
+        # Calcular valores de saturación para verificar si está en campana
         try:
             if prop == "H":
                 h_l = CP.PropsSI("H", "T", T_SI, "Q", 0, fluid)
@@ -238,43 +217,42 @@ def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False, fase=No
                 h_l = CP.PropsSI("U", "T", T_SI, "Q", 0, fluid)
                 h_v = CP.PropsSI("U", "T", T_SI, "Q", 1, fluid)
             
-            if (h_l is not None and h_v is not None):
-                if min(h_l, h_v) <= val_SI <= max(h_l, h_v):
+            # Verificar si los valores de saturación son válidos
+            if h_l is not None and h_v is not None and math.isfinite(h_l) and math.isfinite(h_v):
+                # Determinar mínimo y máximo (puede ser que h_l > h_v para algunos fluidos)
+                h_min = min(h_l, h_v)
+                h_max = max(h_l, h_v)
+                
+                # Si está dentro de la campana, devolver presión de saturación
+                if h_min <= val_SI <= h_max:
                     return CP.PropsSI("P", "T", T_SI, "Q", 0, fluid)
                 
-                # Si está fuera de la campana, probar ambas fases
-                resultados = {}
-                
-                # Intentar líquido comprimido
-                try:
+                # Si está fuera de la campana, buscar en la fase correspondiente
+                if val_SI < h_min:
+                    # Líquido comprimido
                     def f_liquido(P):
                         return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
-                    bracket_liq = find_pressure_bracket(f_liquido, p_min=1e6, p_max=1e9)
-                    if bracket_liq:
-                        p_lo, p_hi = bracket_liq
-                        P_liq = opt.brentq(f_liquido, p_lo, p_hi, maxiter=100)
-                        resultados['liquido'] = P_liq
-                except:
-                    pass
+                    bracket = find_pressure_bracket(f_liquido, p_min=1e6, p_max=1e9)
+                    if bracket:
+                        p_lo, p_hi = bracket
+                        return opt.brentq(f_liquido, p_lo, p_hi, maxiter=100)
                 
-                # Intentar vapor sobrecalentado
-                try:
+                else:  # val_SI > h_max
+                    # Vapor sobrecalentado
                     def f_vapor(P):
                         return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
-                    bracket_vap = find_pressure_bracket(f_vapor, p_min=1e3, p_max=1e7)
-                    if bracket_vap:
-                        p_lo, p_hi = bracket_vap
-                        P_vap = opt.brentq(f_vapor, p_lo, p_hi, maxiter=100)
-                        resultados['vapor'] = P_vap
-                except:
-                    pass
+                    bracket = find_pressure_bracket(f_vapor, p_min=1e3, p_max=1e7)
+                    if bracket:
+                        p_lo, p_hi = bracket
+                        return opt.brentq(f_vapor, p_lo, p_hi, maxiter=100)
                 
-                return resultados
+                return None
                 
-        except Exception:
+        except Exception as e:
+            # Si falla el cálculo de saturación, continuar con búsqueda general
             pass
 
-        # definir función para raíz general
+        # Búsqueda general si no se pudo determinar saturación
         def f(P):
             return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
 
@@ -288,6 +266,7 @@ def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False, fase=No
             return None
         P_root = opt.brentq(f, p_lo, p_hi, maxiter=100)
         return P_root
+        
     except Exception:
         return None
 
@@ -708,4 +687,5 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
