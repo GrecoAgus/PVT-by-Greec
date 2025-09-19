@@ -419,11 +419,32 @@ try:
 except:
     val2 = 0.0
 
-# Mostrar checkbox "dentro de la campana" solo si aplicable (T & h/u)
-dentro_campana_flag = False
+# Checkbox "dentro de la campana" solo visible si entras por T & H o T & U
+dentro_campana_checkbox = False
 if ("T" in (prop1, prop2)) and (("h" in (prop1, prop2)) or ("u" in (prop1, prop2))):
-    dentro_campana_flag = st.checkbox("Forzar: dentro de la campana (dos fases)", value=False,
-                                      help="Si sabe que el estado está en la región bifásica marque esto para usar la presión de saturación.")
+    dentro_campana_checkbox = st.checkbox("Dentro de la campana?", value=False)
+
+# Caso especial T & H o T & U
+if ("T" in (prop1, prop2)) and (("h" in (prop1, prop2)) or ("u" in (prop1, prop2))):
+    if prop1 == "T":
+        T_SI = val1
+        prop_HU = prop2
+        val_HU_SI = val2
+    else:
+        T_SI = val2
+        prop_HU = prop1
+        val_HU_SI = val1
+
+    prop_for_func = "H" if prop_HU.lower() in ("h",) else "U"
+
+    # Llamamos a la función pasándole la opción "dentro_campana"
+    P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func,
+                              dentro_campana=dentro_campana_checkbox)
+    if P_guess is not None:
+        call_prop1 = "T"
+        call_val1_SI = T_SI
+        call_prop2 = "P"
+        call_val2_SI = P_guess
 
 # Inicializar historial
 if 'historial' not in st.session_state:
@@ -597,3 +618,4 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
