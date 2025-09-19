@@ -197,15 +197,38 @@ def find_pressure_bracket(func, p_min=1e-6, p_max=1e8, n=80):
     return None
 
 # === Calcula P a partir de (T,h) o (T,u) ===
-def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False):
+def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False, fase=None):
     """
     Devuelve presión (Pa) para (T, H) o (T, U).
     Si dentro_campana=True devuelve la presión de saturación en T.
+    Si fase='liquido' o 'vapor', busca en esa fase específica.
     """
     try:
         # si el usuario fuerza dentro de la campana devolvemos la presión de saturación
         if dentro_campana:
             return CP.PropsSI("P", "T", T_SI, "Q", 0, fluid)
+        
+        # si se especifica una fase, buscar solo en esa fase
+        if fase == 'liquido':
+            # Buscar en líquido comprimido (alta presión)
+            def f_liquido(P):
+                return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
+            bracket = find_pressure_bracket(f_liquido, p_min=1e6, p_max=1e9)
+            if bracket:
+                p_lo, p_hi = bracket
+                return opt.brentq(f_liquido, p_lo, p_hi, maxiter=100)
+            return None
+            
+        elif fase == 'vapor':
+            # Buscar en vapor sobrecalentado (baja presión)
+            def f_vapor(P):
+                return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
+            bracket = find_pressure_bracket(f_vapor, p_min=1e3, p_max=1e7)
+            if bracket:
+                p_lo, p_hi = bracket
+                return opt.brentq(f_vapor, p_lo, p_hi, maxiter=100)
+            return None
+        
         # comprobar si val_SI cae entre liquido y vapor (entonces estado en campana)
         try:
             if prop == "H":
@@ -214,12 +237,44 @@ def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False):
             else:
                 h_l = CP.PropsSI("U", "T", T_SI, "Q", 0, fluid)
                 h_v = CP.PropsSI("U", "T", T_SI, "Q", 1, fluid)
-            if (h_l is not None and h_v is not None) and (min(h_l, h_v) <= val_SI <= max(h_l, h_v)):
-                return CP.PropsSI("P", "T", T_SI, "Q", 0, fluid)
+            
+            if (h_l is not None and h_v is not None):
+                if min(h_l, h_v) <= val_SI <= max(h_l, h_v):
+                    return CP.PropsSI("P", "T", T_SI, "Q", 0, fluid)
+                
+                # Si está fuera de la campana, probar ambas fases
+                resultados = {}
+                
+                # Intentar líquido comprimido
+                try:
+                    def f_liquido(P):
+                        return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
+                    bracket_liq = find_pressure_bracket(f_liquido, p_min=1e6, p_max=1e9)
+                    if bracket_liq:
+                        p_lo, p_hi = bracket_liq
+                        P_liq = opt.brentq(f_liquido, p_lo, p_hi, maxiter=100)
+                        resultados['liquido'] = P_liq
+                except:
+                    pass
+                
+                # Intentar vapor sobrecalentado
+                try:
+                    def f_vapor(P):
+                        return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
+                    bracket_vap = find_pressure_bracket(f_vapor, p_min=1e3, p_max=1e7)
+                    if bracket_vap:
+                        p_lo, p_hi = bracket_vap
+                        P_vap = opt.brentq(f_vapor, p_lo, p_hi, maxiter=100)
+                        resultados['vapor'] = P_vap
+                except:
+                    pass
+                
+                return resultados
+                
         except Exception:
             pass
 
-        # definir función para raíz
+        # definir función para raíz general
         def f(P):
             return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
 
@@ -348,8 +403,11 @@ except:
 
 # Checkbox "dentro de la campana" solo visible si entras por T & H o T & U
 dentro_campana_checkbox = False
+mostrar_opciones_fase = False
 if ("T" in (prop1, prop2)) and (("h" in (prop1, prop2)) or ("u" in (prop1, prop2))):
     dentro_campana_checkbox = st.checkbox("Dentro de la campana?", value=False)
+    if not dentro_campana_checkbox:
+        mostrar_opciones_fase = st.checkbox("No estoy seguro, mostrar todas las opciones", value=False)
 
 # Inicializar historial
 if 'historial' not in st.session_state:
@@ -376,35 +434,110 @@ if st.button("Calcular"):
             val_HU_SI = val1_SI
         
         prop_for_func = "H" if prop_HU == "h" else "U"
-        P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, dentro_campana=dentro_campana_checkbox)
         
-        if P_guess is not None:
-            if dentro_campana_checkbox:
-                # Dentro de la campana: usar P y h (o P y u) para calcular todas las propiedades
+        if dentro_campana_checkbox:
+            # Dentro de la campana: usar P y h (o P y u)
+            P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, dentro_campana=True)
+            if P_guess is not None:
                 results = calcular_propiedades("P", P_guess, prop_HU, val_HU_SI, fluido_cp)
+                st.subheader("Resultados (Dentro de la campana)")
+                for k, v in results.items():
+                    if v is not None:
+                        unit = output_units.get(k, "")
+                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                    else:
+                        st.write(f"**{display_names.get(k,k)}**: No disponible")
+                
+                # Guardar en historial
+                if len(st.session_state['historial']) >= 20:
+                    st.session_state['historial'].pop(0)
+                st.session_state['historial'].append({
+                    "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
+                    "entrada": {prop1: val1, prop2: val2},
+                    "resultado": results
+                })
             else:
-                # Fuera de la campana: usar T y P para calcular todas las propiedades
-                results = calcular_propiedades("T", T_SI, "P", P_guess, fluido_cp)
+                st.error("No se pudo encontrar una presión válida para los valores dados")
+        
+        elif mostrar_opciones_fase:
+            # Mostrar ambas opciones (líquido y vapor)
+            st.subheader("Múltiples soluciones posibles")
+            st.info("Para los valores ingresados, existen dos estados posibles:")
             
-            # Mostrar resultados
-            st.subheader("Resultados")
-            for k, v in results.items():
-                if v is not None:
-                    unit = output_units.get(k, "")
-                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-                else:
-                    st.write(f"**{display_names.get(k,k)}**: No disponible")
+            # Intentar líquido comprimido
+            P_liq = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, fase='liquido')
+            if P_liq is not None:
+                results_liq = calcular_propiedades("T", T_SI, "P", P_liq, fluido_cp)
+                st.subheader("Opción 1: Líquido comprimido")
+                for k, v in results_liq.items():
+                    if v is not None:
+                        unit = output_units.get(k, "")
+                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                    else:
+                        st.write(f"**{display_names.get(k,k)}**: No disponible")
             
-            # Guardar en historial
-            if len(st.session_state['historial']) >= 20:
-                st.session_state['historial'].pop(0)
-            st.session_state['historial'].append({
-                "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
-                "entrada": {prop1: val1, prop2: val2},
-                "resultado": results
-            })
+            # Intentar vapor sobrecalentado
+            P_vap = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, fase='vapor')
+            if P_vap is not None:
+                results_vap = calcular_propiedades("T", T_SI, "P", P_vap, fluido_cp)
+                st.subheader("Opción 2: Vapor sobrecalentado")
+                for k, v in results_vap.items():
+                    if v is not None:
+                        unit = output_units.get(k, "")
+                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                    else:
+                        st.write(f"**{display_names.get(k,k)}**: No disponible")
+            
+            if P_liq is None and P_vap is None:
+                st.error("No se encontraron soluciones para los valores dados")
+        
         else:
-            st.error("No se pudo encontrar una presión válida para los valores dados")
+            # Búsqueda automática (intenta encontrar una solución)
+            P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func)
+            
+            if isinstance(P_guess, dict):
+                # Múltiples soluciones encontradas
+                st.warning("Se encontraron múltiples soluciones. Por favor selecciona una opción:")
+                
+                if 'liquido' in P_guess:
+                    results_liq = calcular_propiedades("T", T_SI, "P", P_guess['liquido'], fluido_cp)
+                    st.subheader("Opción 1: Líquido comprimido")
+                    for k, v in results_liq.items():
+                        if v is not None:
+                            unit = output_units.get(k, "")
+                            st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                
+                if 'vapor' in P_guess:
+                    results_vap = calcular_propiedades("T", T_SI, "P", P_guess['vapor'], fluido_cp)
+                    st.subheader("Opción 2: Vapor sobrecalentado")
+                    for k, v in results_vap.items():
+                        if v is not None:
+                            unit = output_units.get(k, "")
+                            st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                
+                st.info("Marca 'No estoy seguro, mostrar todas las opciones' para ver ambas siempre")
+                
+            elif P_guess is not None:
+                # Una sola solución encontrada
+                results = calcular_propiedades("T", T_SI, "P", P_guess, fluido_cp)
+                st.subheader("Resultados")
+                for k, v in results.items():
+                    if v is not None:
+                        unit = output_units.get(k, "")
+                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                    else:
+                        st.write(f"**{display_names.get(k,k)}**: No disponible")
+                
+                # Guardar en historial
+                if len(st.session_state['historial']) >= 20:
+                    st.session_state['historial'].pop(0)
+                st.session_state['historial'].append({
+                    "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
+                    "entrada": {prop1: val1, prop2: val2},
+                    "resultado": results
+                })
+            else:
+                st.error("No se pudo encontrar una presión válida para los valores dados")
     
     # Caso general: otras combinaciones de propiedades
     else:
@@ -507,7 +640,7 @@ with st.expander("Mostrar Gráfico"):
                 except Exception:
                     v_liq.append(np.nan)
                 try:
-                    d_vap = CP.PropsSI('D', 'T', T, 'Q', 1, fluid)
+                    d_vap = CP.PropsSI('D', 'T", T, 'Q', 1, fluid)
                     v_vap.append(1.0/d_vap if (d_vap is not None and d_vap != 0) else np.nan)
                 except Exception:
                     v_vap.append(np.nan)
