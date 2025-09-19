@@ -171,99 +171,176 @@ def from_SI(prop, val, unit):
 # === Función para calcular P a partir de (T,H) o (T,U) ===
 def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H"):
     """
-    Calcula la presión (Pa) para un valor dado de entalpía o energía interna y temperatura.
-    prop = "H" o "U"
+    Calcula la presión (Pa) para un valor dado de entalpía (H) o energía interna (U) y temperatura T_SI [K].
+    prop = "H" o "U".
+    Estrategia:
+      1) Intentar CP.PropsSI("P","T",T,"H",h,fluid) directamente.
+      2) Si falla, usar brentq buscando un intervalo con cambio de signo. Usamos desde ptriple a pcrit y
+         si no hay cambio de signo expandimos los límites logarítmicamente hasta un rango amplio.
+    Retorna: P (Pa) o None si no se pudo encontrar.
     """
-    def f(P):
-        return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
-
+    # Intento directo (algunas versiones de CoolProp responden correctamente)
     try:
-        # Rango amplio de presiones
-        P_guess = opt.brentq(f, 100, 1e8)
-        return P_guess
+        P_direct = CP.PropsSI("P", "T", T_SI, prop, val_SI, fluid)
+        if (P_direct is not None) and (not math.isnan(P_direct)) and (P_direct > 0):
+            return P_direct
     except Exception:
-        return None
+        pass
+
+    # Obtengo límites físicos
+    try:
+        p_min = CP.PropsSI("ptriple", fluid)
+    except Exception:
+        p_min = 1e-3  # fallback
+    try:
+        p_max = CP.PropsSI("pcrit", fluid)
+    except Exception:
+        p_max = 1e8
+
+    # Asegurar rangos razonables
+    p_min = max(p_min, 1e-6)
+    p_max = max(p_max, p_min * 10.0)
+
+    def f(P):
+        try:
+            return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
+        except Exception:
+            # Si CoolProp no puede evaluar en ese P devolvemos nan para que no rompa
+            return float("nan")
+
+    # Primero intento dentro de ptriple..pcrit (si es válido)
+    try:
+        f_lo = f(p_min)
+        f_hi = f(p_max)
+        if math.isfinite(f_lo) and math.isfinite(f_hi) and f_lo * f_hi < 0:
+            return opt.brentq(f, p_min, p_max)
+    except Exception:
+        pass
+
+    # Si no hay cambio de signo, expandimos búsqueda en escala log (por ejemplo desde 1e-6 a 1e9)
+    # Buscamos intervalos por potencias de 10 hasta cierto límite
+    ex_lo = -9  # 1e-9 Pa lower (prácticamente vacuum)
+    ex_hi = 9   # 1e9 Pa upper
+    found = None
+    prev_P = None
+    prev_f = None
+
+    for e in range(ex_lo, ex_hi + 1):
+        P_try = 10.0 ** e
+        f_try = f(P_try)
+        if prev_P is None:
+            prev_P, prev_f = P_try, f_try
+            continue
+        # verificar si alguno es nan -> skip
+        if not (math.isfinite(prev_f) and math.isfinite(f_try)):
+            prev_P, prev_f = P_try, f_try
+            continue
+        if prev_f * f_try < 0:
+            # bracket encontrado
+            try:
+                return opt.brentq(f, prev_P, P_try)
+            except Exception:
+                pass
+        prev_P, prev_f = P_try, f_try
+
+    # Si llegamos acá no se encontró raíz
+    return None
 
 # === Función principal modificada ===
 def get_state(prop1, val1, prop2, val2, fluid):
+    # convertir entradas a SI
     val1_SI = to_SI(prop1, val1, input_units[prop1])
     val2_SI = to_SI(prop2, val2, input_units[prop2])
-    results = {k: None for k in to_return.keys()}  # inicializa todo en None
 
-    # Detectar si necesitamos iterar para obtener P
-    if (prop1 == "T" and prop2 in ["h", "u"]) or (prop2 == "T" and prop1 in ["h", "u"]):
-        T_SI = val1_SI if prop1 == "T" else val2_SI
-        val_SI = val2_SI if prop1 == "T" else val1_SI
-        prop_val = "H" if (prop1 == "h" or prop2 == "h") else "U"
-        P_SI = P_from_T_H_or_U(T_SI, val_SI, fluid, prop=prop_val)
-        if P_SI is None:
-            return results  # si no se puede calcular, devolvemos todo None
+    # Preparar variables que usaremos para llamar a CoolProp.
+    # Por defecto usaremos las propiedades tal cual las ingresó el usuario.
+    call_prop1 = prop1
+    call_val1_SI = val1_SI
+    call_prop2 = prop2
+    call_val2_SI = val2_SI
 
-        # Ahora usamos T y P para calcular todo
-        val1_SI, val2_SI = T_SI, P_SI
-        prop1, prop2 = "T", "P"
+    # Caso especial: si el usuario entró T & h (o h & T) o T & u (o u & T),
+    # intentamos obtener la P asociada y luego re-llamamos como (T,P) para obtener el resto.
+    if ("T" in (prop1, prop2)) and (("h" in (prop1, prop2)) or ("u" in (prop1, prop2))):
+        # extraer T_SI y h_or_u_SI correctamente
+        if prop1 == "T":
+            T_SI = val1_SI
+            prop_HU = prop2
+            val_HU_SI = val2_SI
+        else:
+            T_SI = val2_SI
+            prop_HU = prop1
+            val_HU_SI = val1_SI
 
-    # Función interna para intentar calcular propiedades
-    def safe_prop(target):
-        try:
-            val = CP.PropsSI(target, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-            return val
-        except:
-            return None
+        # determinar si es enthalpy 'H' o internal energy 'U' para la función
+        prop_for_func = "H" if prop_HU.lower() in ("h",) else "U"
 
-    # Propiedades básicas
+        P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluid, prop=prop_for_func)
+        if P_guess is not None:
+            # usaremos (T,P) como par conocido para obtener el resto
+            call_prop1 = "T"
+            call_val1_SI = T_SI
+            call_prop2 = "P"
+            call_val2_SI = P_guess
+        else:
+            # si no encontramos P, dejamos los call_prop como vienen (CoolProp intentará y puede fallar)
+            pass
+
+    results = {}
+
+    # ahora usamos call_prop1/call_val1_SI y call_prop2/call_val2_SI para calcular las propiedades
     for k, v in to_return.items():
-        val = safe_prop(v)
-        if val is not None:
+        try:
+            val = CP.PropsSI(v, props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
             results[k] = from_SI(k, val, output_units[k])
+        except Exception:
+            results[k] = None
 
-    # Volumen específico
+    # volumen especifico (v = 1/rho)
     try:
-        rho = safe_prop("D")
-        if rho: 
-            results["v"] = from_SI("v", 1/rho, output_units["v"])
-    except:
+        rho = CP.PropsSI("D", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        v_specific = None if (rho is None or rho == 0) else 1.0 / rho
+        results["v"] = from_SI("v", v_specific, output_units["v"]) if v_specific is not None else None
+    except Exception:
         results["v"] = None
 
-    # Velocidad del sonido
+    # resto de propiedades (vel sonido, exergia, mu, cp, cv, k) - mantener tu lógica previa
+    # ... (puedes conservar tu código actual para esas propiedades, usando call_prop1/call_prop2)
+    # por ejemplo, velocidad del sonido:
     try:
-        a = safe_prop("A")
-        if a:
-            results["vel_sonido"] = from_SI("vel_sonido", a, output_units["vel_sonido"])
-    except:
+        val = CP.PropsSI("A", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        results["vel_sonido"] = from_SI("vel_sonido", val, output_units["vel_sonido"])
+    except Exception:
         results["vel_sonido"] = None
 
-    # Exergía
+    # exergia (igual que antes)
     try:
-        h = safe_prop("H")
-        s = safe_prop("S")
+        h = CP.PropsSI("H", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        s = CP.PropsSI("S", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
         h0 = CP.PropsSI("H", "T", T_ref + 273.15, "P", P_ref, fluid)
         s0 = CP.PropsSI("S", "T", T_ref + 273.15, "P", P_ref, fluid)
-        if h is not None and s is not None:
-            ex = (h - h0) - (T_ref + 273.15)*(s - s0)
-            results["exergia"] = from_SI("exergia", ex, output_units["exergia"])
-    except:
+        ex = (h - h0) - (T_ref + 273.15) * (s - s0)
+        results["exergia"] = from_SI("exergia", ex, output_units["exergia"])
+    except Exception:
         results["exergia"] = None
 
-    # Viscosidad
+    # viscosidad
     try:
-        mu = safe_prop("V")
-        if mu:
-            results["mu"] = from_SI("mu", mu, output_units["mu"])
-    except:
+        val = CP.PropsSI("V", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        results["mu"] = from_SI("mu", val, output_units["mu"])
+    except Exception:
         results["mu"] = None
 
     # cp, cv, k
     try:
-        cp = safe_prop("Cpmass")
-        cv = safe_prop("Cvmass")
-        k = cp / cv if cp is not None and cv not in [0, None] else None
-        if cp is not None:
-            results["cp"] = from_SI("cp", cp, output_units["cp"])
-        if cv is not None:
-            results["cv"] = from_SI("cv", cv, output_units["cv"])
+        cp = CP.PropsSI("Cpmass", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        cv = CP.PropsSI("Cvmass", props[call_prop1], call_val1_SI, props[call2], call_val2_SI, fluid) \
+             if False else CP.PropsSI("Cvmass", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        k = cp / cv if cv and cv != 0 else None
+        results["cp"] = from_SI("cp", cp, output_units["cp"]) if cp is not None else None
+        results["cv"] = from_SI("cv", cv, output_units["cv"]) if cv is not None else None
         results["k"] = k
-    except:
+    except Exception:
         results["cp"], results["cv"], results["k"] = None, None, None
 
     return results
@@ -460,3 +537,4 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
