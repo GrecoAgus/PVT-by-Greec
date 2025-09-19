@@ -455,7 +455,7 @@ tz = pytz.timezone("America/Argentina/Buenos_Aires")
 
 # Botón calcular
 if st.button("Calcular"):
-    res = get_state(prop1, val1, prop2, val2, fluido_cp, dentro_campana_flag=dentro_campana_flag)
+    res = get_state(prop1, val1, prop2, val2, fluido_cp, dentro_campana_flag=dentro_campana_checkbox)
     st.subheader("Resultados")
     for k, v in res.items():
         if v is not None:
@@ -618,5 +618,6 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
