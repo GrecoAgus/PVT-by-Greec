@@ -236,26 +236,22 @@ def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False):
     except Exception:
         return None
 
-# === Función para calcular todas las propiedades dado T y P ===
-def calcular_propiedades_desde_TP(T_SI, P_SI, fluid, val_HU_SI=None, prop_HU=None):
-    """Calcula todas las propiedades termodinámicas dado T y P"""
+# === Función para calcular todas las propiedades ===
+def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
+    """Calcula todas las propiedades termodinámicas dadas dos propiedades"""
     results = {}
     
     # Calcular propiedades principales
     for k, v in to_return.items():
         try:
-            # Si es la propiedad que ya conocemos (h o u), usar el valor original
-            if (k == "h" and prop_HU == "h") or (k == "u" and prop_HU == "u"):
-                results[k] = from_SI(k, val_HU_SI, output_units.get(k, output_units["T"]))
-            else:
-                raw = CP.PropsSI(v, "T", T_SI, "P", P_SI, fluid)
-                results[k] = from_SI(k, raw, output_units.get(k, output_units["T"]))
+            raw = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+            results[k] = from_SI(k, raw, output_units.get(k, output_units["T"]))
         except Exception:
             results[k] = None
     
     # Calcular propiedades adicionales
     try:
-        rho_raw = CP.PropsSI("D", "T", T_SI, "P", P_SI, fluid)
+        rho_raw = CP.PropsSI("D", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         if rho_raw is not None and rho_raw != 0:
             v_raw = 1.0 / rho_raw
             results["v"] = from_SI("v", v_raw, output_units.get("v", output_units["v"]))
@@ -265,14 +261,14 @@ def calcular_propiedades_desde_TP(T_SI, P_SI, fluid, val_HU_SI=None, prop_HU=Non
         results["v"] = None
     
     try:
-        a_raw = CP.PropsSI("A", "T", T_SI, "P", P_SI, fluid)
+        a_raw = CP.PropsSI("A", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         results["vel_sonido"] = from_SI("vel_sonido", a_raw, output_units.get("vel_sonido", output_units["vel_sonido"]))
     except Exception:
         results["vel_sonido"] = None
     
     try:
-        h_raw = CP.PropsSI("H", "T", T_SI, "P", P_SI, fluid)
-        s_raw = CP.PropsSI("S", "T", T_SI, "P", P_SI, fluid)
+        h_raw = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        s_raw = CP.PropsSI("S", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         h0 = CP.PropsSI("H", "T", T_ref + 273.15, "P", P_ref, fluid)
         s0 = CP.PropsSI("S", "T", T_ref + 273.15, "P", P_ref, fluid)
         ex_raw = (h_raw - h0) - (T_ref + 273.15) * (s_raw - s0)
@@ -281,14 +277,14 @@ def calcular_propiedades_desde_TP(T_SI, P_SI, fluid, val_HU_SI=None, prop_HU=Non
         results["exergia"] = None
     
     try:
-        mu_raw = CP.PropsSI("V", "T", T_SI, "P", P_SI, fluid)
+        mu_raw = CP.PropsSI("V", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         results["mu"] = from_SI("mu", mu_raw, output_units.get("mu", output_units["mu"]))
     except Exception:
         results["mu"] = None
     
     try:
-        cp_raw = CP.PropsSI("Cpmass", "T", T_SI, "P", P_SI, fluid)
-        cv_raw = CP.PropsSI("Cvmass", "T", T_SI, "P", P_SI, fluid)
+        cp_raw = CP.PropsSI("Cpmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        cv_raw = CP.PropsSI("Cvmass", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         k_val = None
         if (cv_raw is not None) and (cv_raw != 0):
             k_val = cp_raw / cv_raw
@@ -383,8 +379,12 @@ if st.button("Calcular"):
         P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, dentro_campana=dentro_campana_checkbox)
         
         if P_guess is not None:
-            # Calcular todas las propiedades usando T y P
-            results = calcular_propiedades_desde_TP(T_SI, P_guess, fluido_cp, val_HU_SI, prop_HU)
+            if dentro_campana_checkbox:
+                # Dentro de la campana: usar P y h (o P y u) para calcular todas las propiedades
+                results = calcular_propiedades("P", P_guess, prop_HU, val_HU_SI, fluido_cp)
+            else:
+                # Fuera de la campana: usar T y P para calcular todas las propiedades
+                results = calcular_propiedades("T", T_SI, "P", P_guess, fluido_cp)
             
             # Mostrar resultados
             st.subheader("Resultados")
@@ -409,81 +409,25 @@ if st.button("Calcular"):
     # Caso general: otras combinaciones de propiedades
     else:
         # Usar CoolProp directamente
-        results = {}
-        try:
-            # Calcular propiedades principales
-            for k, v in to_return.items():
-                try:
-                    raw = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                    results[k] = from_SI(k, raw, output_units.get(k, output_units["T"]))
-                except Exception:
-                    results[k] = None
-            
-            # Calcular propiedades adicionales
-            try:
-                rho_raw = CP.PropsSI("D", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                if rho_raw is not None and rho_raw != 0:
-                    v_raw = 1.0 / rho_raw
-                    results["v"] = from_SI("v", v_raw, output_units.get("v", output_units["v"]))
-                else:
-                    results["v"] = None
-            except Exception:
-                results["v"] = None
-            
-            try:
-                a_raw = CP.PropsSI("A", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                results["vel_sonido"] = from_SI("vel_sonido", a_raw, output_units.get("vel_sonido", output_units["vel_sonido"]))
-            except Exception:
-                results["vel_sonido"] = None
-            
-            try:
-                h_raw = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                s_raw = CP.PropsSI("S", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                h0 = CP.PropsSI("H", "T", T_ref + 273.15, "P", P_ref, fluido_cp)
-                s0 = CP.PropsSI("S", "T", T_ref + 273.15, "P", P_ref, fluido_cp)
-                ex_raw = (h_raw - h0) - (T_ref + 273.15) * (s_raw - s0)
-                results["exergia"] = from_SI("exergia", ex_raw, output_units.get("exergia", output_units["exergia"]))
-            except Exception:
-                results["exergia"] = None
-            
-            try:
-                mu_raw = CP.PropsSI("V", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                results["mu"] = from_SI("mu", mu_raw, output_units.get("mu", output_units["mu"]))
-            except Exception:
-                results["mu"] = None
-            
-            try:
-                cp_raw = CP.PropsSI("Cpmass", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                cv_raw = CP.PropsSI("Cvmass", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
-                k_val = None
-                if (cv_raw is not None) and (cv_raw != 0):
-                    k_val = cp_raw / cv_raw
-                results["cp"] = from_SI("cp", cp_raw, output_units.get("cp", output_units["cp"])) if cp_raw is not None else None
-                results["cv"] = from_SI("cv", cv_raw, output_units.get("cv", output_units["cv"])) if cv_raw is not None else None
-                results["k"] = k_val
-            except Exception:
-                results["cp"], results["cv"], results["k"] = None, None, None
-            
-            # Mostrar resultados
-            st.subheader("Resultados")
-            for k, v in results.items():
-                if v is not None:
-                    unit = output_units.get(k, "")
-                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-                else:
-                    st.write(f"**{display_names.get(k,k)}**: No disponible")
-            
-            # Guardar en historial
-            if len(st.session_state['historial']) >= 20:
-                st.session_state['historial'].pop(0)
-            st.session_state['historial'].append({
-                "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
-                "entrada": {prop1: val1, prop2: val2},
-                "resultado": results
-            })
-            
-        except Exception as e:
-            st.error(f"Error al calcular propiedades: {e}")
+        results = calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluido_cp)
+        
+        # Mostrar resultados
+        st.subheader("Resultados")
+        for k, v in results.items():
+            if v is not None:
+                unit = output_units.get(k, "")
+                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+            else:
+                st.write(f"**{display_names.get(k,k)}**: No disponible")
+        
+        # Guardar en historial
+        if len(st.session_state['historial']) >= 20:
+            st.session_state['historial'].pop(0)
+        st.session_state['historial'].append({
+            "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
+            "entrada": {prop1: val1, prop2: val2},
+            "resultado": results
+        })
 
 # Historial
 hist = st.session_state.get('historial', [])
