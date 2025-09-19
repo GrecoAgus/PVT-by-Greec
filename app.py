@@ -236,93 +236,59 @@ def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False):
     except Exception:
         return None
 
-# === Función principal completa (mantiene todas las propiedades) ===
-def get_state(prop1, val1, prop2, val2, fluid, dentro_campana_flag=False):
-    # convertir entradas a SI
-    val1_SI = to_SI(prop1, val1, input_units.get(prop1, "°C"))
-    val2_SI = to_SI(prop2, val2, input_units.get(prop2, "Pa"))
-
-    # preparar call props
-    call_prop1 = prop1
-    call_val1_SI = val1_SI
-    call_prop2 = prop2
-    call_val2_SI = val2_SI
-
-    # caso (T,h) o (T,u) -> intentar obtener P (respetando el flag de la UI)
-    if ("T" in (prop1, prop2)) and (("h" in (prop1, prop2)) or ("u" in (prop1, prop2))):
-        if prop1 == "T":
-            T_SI = val1_SI
-            prop_HU = prop2
-            val_HU_SI = val2_SI
-        else:
-            T_SI = val2_SI
-            prop_HU = prop1
-            val_HU_SI = val1_SI
-        prop_for_func = "H" if prop_HU == "h" else "U"
-        P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluid, prop=prop_for_func, dentro_campana=dentro_campana_flag)
-        if P_guess is not None:
-            call_prop1 = "T"
-            call_val1_SI = T_SI
-            call_prop2 = "P"
-            call_val2_SI = P_guess
-        else:
-            # intentar dejarlos tal cual y CoolProp lo manejará (puede fallar)
-            call_prop1 = prop1
-            call_val1_SI = val1_SI
-            call_prop2 = prop2
-            call_val2_SI = val2_SI
-
+# === Función para calcular todas las propiedades dado T y P ===
+def calcular_propiedades_desde_TP(T_SI, P_SI, fluid, val_HU_SI=None, prop_HU=None):
+    """Calcula todas las propiedades termodinámicas dado T y P"""
     results = {}
-
-    # calcular propiedades principales
+    
+    # Calcular propiedades principales
     for k, v in to_return.items():
         try:
-            raw = CP.PropsSI(v, props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
-            # 'x' es adimensional, from_SI lo devolverá sin cambios en general
-            results[k] = from_SI(k, raw, output_units.get(k, output_units["T"]))
+            # Si es la propiedad que ya conocemos (h o u), usar el valor original
+            if (k == "h" and prop_HU == "h") or (k == "u" and prop_HU == "u"):
+                results[k] = from_SI(k, val_HU_SI, output_units.get(k, output_units["T"]))
+            else:
+                raw = CP.PropsSI(v, "T", T_SI, "P", P_SI, fluid)
+                results[k] = from_SI(k, raw, output_units.get(k, output_units["T"]))
         except Exception:
             results[k] = None
-
-    # volumen específico (v = 1/rho) — lo calculamos explícitamente porque suele ser útil
+    
+    # Calcular propiedades adicionales
     try:
-        rho_raw = CP.PropsSI("D", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
-        if rho_raw is None or rho_raw == 0:
-            results["v"] = None
-        else:
+        rho_raw = CP.PropsSI("D", "T", T_SI, "P", P_SI, fluid)
+        if rho_raw is not None and rho_raw != 0:
             v_raw = 1.0 / rho_raw
             results["v"] = from_SI("v", v_raw, output_units.get("v", output_units["v"]))
+        else:
+            results["v"] = None
     except Exception:
         results["v"] = None
-
-    # velocidad del sonido
+    
     try:
-        a_raw = CP.PropsSI("A", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        a_raw = CP.PropsSI("A", "T", T_SI, "P", P_SI, fluid)
         results["vel_sonido"] = from_SI("vel_sonido", a_raw, output_units.get("vel_sonido", output_units["vel_sonido"]))
     except Exception:
         results["vel_sonido"] = None
-
-    # exergía
+    
     try:
-        h_raw = CP.PropsSI("H", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
-        s_raw = CP.PropsSI("S", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        h_raw = CP.PropsSI("H", "T", T_SI, "P", P_SI, fluid)
+        s_raw = CP.PropsSI("S", "T", T_SI, "P", P_SI, fluid)
         h0 = CP.PropsSI("H", "T", T_ref + 273.15, "P", P_ref, fluid)
         s0 = CP.PropsSI("S", "T", T_ref + 273.15, "P", P_ref, fluid)
         ex_raw = (h_raw - h0) - (T_ref + 273.15) * (s_raw - s0)
         results["exergia"] = from_SI("exergia", ex_raw, output_units.get("exergia", output_units["exergia"]))
     except Exception:
         results["exergia"] = None
-
-    # viscosidad
+    
     try:
-        mu_raw = CP.PropsSI("V", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        mu_raw = CP.PropsSI("V", "T", T_SI, "P", P_SI, fluid)
         results["mu"] = from_SI("mu", mu_raw, output_units.get("mu", output_units["mu"]))
     except Exception:
         results["mu"] = None
-
-    # cp, cv, k
+    
     try:
-        cp_raw = CP.PropsSI("Cpmass", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
-        cv_raw = CP.PropsSI("Cvmass", props[call_prop1], call_val1_SI, props[call_prop2], call_val2_SI, fluid)
+        cp_raw = CP.PropsSI("Cpmass", "T", T_SI, "P", P_SI, fluid)
+        cv_raw = CP.PropsSI("Cvmass", "T", T_SI, "P", P_SI, fluid)
         k_val = None
         if (cv_raw is not None) and (cv_raw != 0):
             k_val = cp_raw / cv_raw
@@ -331,42 +297,7 @@ def get_state(prop1, val1, prop2, val2, fluid, dentro_campana_flag=False):
         results["k"] = k_val
     except Exception:
         results["cp"], results["cv"], results["k"] = None, None, None
-
-    # --- CORRECCIÓN ROBUSTA PARA LA CALIDAD (x) SI TENEMOS (T,P) ---
-    try:
-        if ("T" in (call_prop1, call_prop2)) and ("P" in (call_prop1, call_prop2)):
-            # extraer T_SI y P_SI
-            T_SI = call_val1_SI if call_prop1 == "T" else call_val2_SI
-            P_SI = call_val1_SI if call_prop1 == "P" else call_val2_SI
-            Tsat = CP.PropsSI("T", "P", P_SI, "Q", 0, fluid)  # saturación a esa P
-            if np.isfinite(Tsat):
-                tol = 1e-6  # tolerancia en K
-                if T_SI < Tsat - tol:
-                    results["x"] = 0.0
-                elif T_SI > Tsat + tol:
-                    results["x"] = 1.0
-                else:
-                    # en la frontera de saturación: calculamos calidad por entalpías
-                    try:
-                        h_state = CP.PropsSI("H", "T", T_SI, "P", P_SI, fluid)
-                        h_l = CP.PropsSI("H", "T", T_SI, "Q", 0, fluid)
-                        h_v = CP.PropsSI("H", "T", T_SI, "Q", 1, fluid)
-                        if h_l is not None and h_v is not None and (h_v - h_l) != 0:
-                            q_calc = (h_state - h_l) / (h_v - h_l)
-                            # limitar a [0,1]
-                            q_calc = max(0.0, min(1.0, float(q_calc)))
-                            results["x"] = q_calc
-                        else:
-                            # fallback: intentar PropsSI('Q',...)
-                            q_try = CP.PropsSI("Q", "T", T_SI, "P", P_SI, fluid)
-                            if np.isfinite(q_try):
-                                results["x"] = float(q_try)
-                    except Exception:
-                        # fallback final: no tocar results["x"]
-                        pass
-    except Exception:
-        pass
-
+    
     return results
 
 # === Streamlit UI ===
@@ -433,11 +364,11 @@ tz = pytz.timezone("America/Argentina/Buenos_Aires")
 
 # Botón calcular
 if st.button("Calcular"):
-    # Convertir valores a SI antes de procesar
+    # Convertir valores a SI
     val1_SI = to_SI(prop1, val1, input_units.get(prop1, "°C"))
     val2_SI = to_SI(prop2, val2, input_units.get(prop2, "Pa"))
     
-    # Para el caso especial T & H o T & U, calcular la presión primero
+    # Caso especial: T y h o T y u
     if ("T" in (prop1, prop2)) and (("h" in (prop1, prop2)) or ("u" in (prop1, prop2))):
         if prop1 == "T":
             T_SI = val1_SI
@@ -452,117 +383,107 @@ if st.button("Calcular"):
         P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, dentro_campana=dentro_campana_checkbox)
         
         if P_guess is not None:
-            # Si encontramos presión, usar T y P para calcular todas las propiedades
-            try:
-                # Calcular todas las propiedades usando T y P
-                results = {}
-                for k, v in to_return.items():
-                    try:
-                        if k == prop_HU:  # Para h o u, usar el valor original
-                            results[k] = from_SI(k, val_HU_SI, output_units.get(k, output_units["T"]))
-                        else:
-                            raw = CP.PropsSI(v, "T", T_SI, "P", P_guess, fluido_cp)
-                            results[k] = from_SI(k, raw, output_units.get(k, output_units["T"]))
-                    except Exception:
-                        results[k] = None
-                
-                # Calcular propiedades adicionales
-                try:
-                    rho_raw = CP.PropsSI("D", "T", T_SI, "P", P_guess, fluido_cp)
-                    if rho_raw is not None and rho_raw != 0:
-                        v_raw = 1.0 / rho_raw
-                        results["v"] = from_SI("v", v_raw, output_units.get("v", output_units["v"]))
-                    else:
-                        results["v"] = None
-                except Exception:
-                    results["v"] = None
-                
-                try:
-                    a_raw = CP.PropsSI("A", "T", T_SI, "P", P_guess, fluido_cp)
-                    results["vel_sonido"] = from_SI("vel_sonido", a_raw, output_units.get("vel_sonido", output_units["vel_sonido"]))
-                except Exception:
-                    results["vel_sonido"] = None
-                
-                try:
-                    h_raw = CP.PropsSI("H", "T", T_SI, "P", P_guess, fluido_cp)
-                    s_raw = CP.PropsSI("S", "T", T_SI, "P", P_guess, fluido_cp)
-                    h0 = CP.PropsSI("H", "T", T_ref + 273.15, "P", P_ref, fluido_cp)
-                    s0 = CP.PropsSI("S", "T", T_ref + 273.15, "P", P_ref, fluido_cp)
-                    ex_raw = (h_raw - h0) - (T_ref + 273.15) * (s_raw - s0)
-                    results["exergia"] = from_SI("exergia", ex_raw, output_units.get("exergia", output_units["exergia"]))
-                except Exception:
-                    results["exergia"] = None
-                
-                try:
-                    mu_raw = CP.PropsSI("V", "T", T_SI, "P", P_guess, fluido_cp)
-                    results["mu"] = from_SI("mu", mu_raw, output_units.get("mu", output_units["mu"]))
-                except Exception:
-                    results["mu"] = None
-                
-                try:
-                    cp_raw = CP.PropsSI("Cpmass", "T", T_SI, "P", P_guess, fluido_cp)
-                    cv_raw = CP.PropsSI("Cvmass", "T", T_SI, "P", P_guess, fluido_cp)
-                    k_val = None
-                    if (cv_raw is not None) and (cv_raw != 0):
-                        k_val = cp_raw / cv_raw
-                    results["cp"] = from_SI("cp", cp_raw, output_units.get("cp", output_units["cp"])) if cp_raw is not None else None
-                    results["cv"] = from_SI("cv", cv_raw, output_units.get("cv", output_units["cv"])) if cv_raw is not None else None
-                    results["k"] = k_val
-                except Exception:
-                    results["cp"], results["cv"], results["k"] = None, None, None
-                
-                # Calcular calidad si estamos en la campana
-                try:
-                    if dentro_campana_checkbox:
-                        h_state = CP.PropsSI("H", "T", T_SI, "P", P_guess, fluido_cp)
-                        h_l = CP.PropsSI("H", "T", T_SI, "Q", 0, fluido_cp)
-                        h_v = CP.PropsSI("H", "T", T_SI, "Q", 1, fluido_cp)
-                        if h_l is not None and h_v is not None and (h_v - h_l) != 0:
-                            q_calc = (h_state - h_l) / (h_v - h_l)
-                            q_calc = max(0.0, min(1.0, float(q_calc)))
-                            results["x"] = q_calc
-                except Exception:
-                    pass
-                
-                st.subheader("Resultados")
-                for k, v in results.items():
-                    if v is not None:
-                        unit = output_units.get(k, "")
-                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-                    else:
-                        st.write(f"**{display_names.get(k,k)}**: No disponible")
-                
-                # Guardar en historial
-                if len(st.session_state['historial']) >= 20:
-                    st.session_state['historial'].pop(0)
-                st.session_state['historial'].append({
-                    "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
-                    "entrada": {prop1: val1, prop2: val2},
-                    "resultado": results
-                })
-                
-            except Exception as e:
-                st.error(f"Error al calcular propiedades: {e}")
+            # Calcular todas las propiedades usando T y P
+            results = calcular_propiedades_desde_TP(T_SI, P_guess, fluido_cp, val_HU_SI, prop_HU)
+            
+            # Mostrar resultados
+            st.subheader("Resultados")
+            for k, v in results.items():
+                if v is not None:
+                    unit = output_units.get(k, "")
+                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                else:
+                    st.write(f"**{display_names.get(k,k)}**: No disponible")
+            
+            # Guardar en historial
+            if len(st.session_state['historial']) >= 20:
+                st.session_state['historial'].pop(0)
+            st.session_state['historial'].append({
+                "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
+                "entrada": {prop1: val1, prop2: val2},
+                "resultado": results
+            })
         else:
             st.error("No se pudo encontrar una presión válida para los valores dados")
+    
+    # Caso general: otras combinaciones de propiedades
     else:
-        # Para otros casos, usar la función original
-        res = get_state(prop1, val1, prop2, val2, fluido_cp, dentro_campana_flag=dentro_campana_checkbox)
-        st.subheader("Resultados")
-        for k, v in res.items():
-            if v is not None:
-                unit = output_units.get(k, "")
-                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-            else:
-                st.write(f"**{display_names.get(k,k)}**: No disponible")
-        
-        if len(st.session_state['historial']) >= 20:
-            st.session_state['historial'].pop(0)
-        st.session_state['historial'].append({
-            "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
-            "entrada": {prop1: val1, prop2: val2},
-            "resultado": res
-        })
+        # Usar CoolProp directamente
+        results = {}
+        try:
+            # Calcular propiedades principales
+            for k, v in to_return.items():
+                try:
+                    raw = CP.PropsSI(v, props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                    results[k] = from_SI(k, raw, output_units.get(k, output_units["T"]))
+                except Exception:
+                    results[k] = None
+            
+            # Calcular propiedades adicionales
+            try:
+                rho_raw = CP.PropsSI("D", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                if rho_raw is not None and rho_raw != 0:
+                    v_raw = 1.0 / rho_raw
+                    results["v"] = from_SI("v", v_raw, output_units.get("v", output_units["v"]))
+                else:
+                    results["v"] = None
+            except Exception:
+                results["v"] = None
+            
+            try:
+                a_raw = CP.PropsSI("A", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                results["vel_sonido"] = from_SI("vel_sonido", a_raw, output_units.get("vel_sonido", output_units["vel_sonido"]))
+            except Exception:
+                results["vel_sonido"] = None
+            
+            try:
+                h_raw = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                s_raw = CP.PropsSI("S", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                h0 = CP.PropsSI("H", "T", T_ref + 273.15, "P", P_ref, fluido_cp)
+                s0 = CP.PropsSI("S", "T", T_ref + 273.15, "P", P_ref, fluido_cp)
+                ex_raw = (h_raw - h0) - (T_ref + 273.15) * (s_raw - s0)
+                results["exergia"] = from_SI("exergia", ex_raw, output_units.get("exergia", output_units["exergia"]))
+            except Exception:
+                results["exergia"] = None
+            
+            try:
+                mu_raw = CP.PropsSI("V", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                results["mu"] = from_SI("mu", mu_raw, output_units.get("mu", output_units["mu"]))
+            except Exception:
+                results["mu"] = None
+            
+            try:
+                cp_raw = CP.PropsSI("Cpmass", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                cv_raw = CP.PropsSI("Cvmass", props[prop1], val1_SI, props[prop2], val2_SI, fluido_cp)
+                k_val = None
+                if (cv_raw is not None) and (cv_raw != 0):
+                    k_val = cp_raw / cv_raw
+                results["cp"] = from_SI("cp", cp_raw, output_units.get("cp", output_units["cp"])) if cp_raw is not None else None
+                results["cv"] = from_SI("cv", cv_raw, output_units.get("cv", output_units["cv"])) if cv_raw is not None else None
+                results["k"] = k_val
+            except Exception:
+                results["cp"], results["cv"], results["k"] = None, None, None
+            
+            # Mostrar resultados
+            st.subheader("Resultados")
+            for k, v in results.items():
+                if v is not None:
+                    unit = output_units.get(k, "")
+                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                else:
+                    st.write(f"**{display_names.get(k,k)}**: No disponible")
+            
+            # Guardar en historial
+            if len(st.session_state['historial']) >= 20:
+                st.session_state['historial'].pop(0)
+            st.session_state['historial'].append({
+                "fecha": datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S"),
+                "entrada": {prop1: val1, prop2: val2},
+                "resultado": results
+            })
+            
+        except Exception as e:
+            st.error(f"Error al calcular propiedades: {e}")
 
 # Historial
 hist = st.session_state.get('historial', [])
@@ -609,4 +530,104 @@ with st.expander("Mostrar Gráfico"):
                 except Exception:
                     S_vap.append(np.nan)
             S_liq_plot = [from_SI("s", s, output_units["s"]) if (s is not None and np.isfinite(s)) else None for s in S_liq]
-            S_vap_plot = [from_SI("s", s, output_units["s"]) if
+            S_vap_plot = [from_SI("s", s, output_units["s"]) if (s is not None and np.isfinite(s)) else None for s in S_vap]
+            S_liq_x = [s for s in S_liq_plot if s is not None]
+            S_liq_y = [T_plot[i] for i,s in enumerate(S_liq_plot) if s is not None]
+            S_vap_x = [s for s in S_vap_plot if s is not None]
+            S_vap_y = [T_plot[i] for i,s in enumerate(S_vap_plot) if s is not None]
+
+            fig.add_trace(go.Scatter(x=S_liq_x, y=S_liq_y, mode='lines', name="Líquido saturado"))
+            fig.add_trace(go.Scatter(x=S_vap_x, y=S_vap_y, mode='lines', name="Vapor saturado"))
+            fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
+
+            x_vals = [h["resultado"].get("s") for h in hist if h["resultado"].get("s") is not None]
+            y_vals = [h["resultado"].get("T") for h in hist if h["resultado"].get("T") is not None]
+
+        else:  # P vs v
+            P_liq = []
+            P_vap = []
+            v_liq = []
+            v_vap = []
+            for T in T_vals:
+                try:
+                    P_liq.append(CP.PropsSI('P', 'T', T, 'Q', 0, fluid))
+                except Exception:
+                    P_liq.append(np.nan)
+                try:
+                    P_vap.append(CP.PropsSI('P', 'T', T, 'Q', 1, fluid))
+                except Exception:
+                    P_vap.append(np.nan)
+                try:
+                    d_liq = CP.PropsSI('D', 'T', T, 'Q', 0, fluid)
+                    v_liq.append(1.0/d_liq if (d_liq is not None and d_liq != 0) else np.nan)
+                except Exception:
+                    v_liq.append(np.nan)
+                try:
+                    d_vap = CP.PropsSI('D', 'T', T, 'Q', 1, fluid)
+                    v_vap.append(1.0/d_vap if (d_vap is not None and d_vap != 0) else np.nan)
+                except Exception:
+                    v_vap.append(np.nan)
+
+            P_liq_plot = [from_SI("P", p, output_units["P"]) if (p is not None and np.isfinite(p)) else None for p in P_liq]
+            P_vap_plot = [from_SI("P", p, output_units["P"]) if (p is not None and np.isfinite(p)) else None for p in P_vap]
+            v_liq_plot = [from_SI("v", v, output_units["v"]) if (v is not None and np.isfinite(v)) else None for v in v_liq]
+            v_vap_plot = [from_SI("v", v, output_units["v"]) if (v is not None and np.isfinite(v)) else None for v in v_vap]
+
+            v_liq_x = [v for v in v_liq_plot if v is not None]
+            P_liq_y = [P_liq_plot[i] for i,v in enumerate(v_liq_plot) if v is not None]
+            v_vap_x = [v for v in v_vap_plot if v is not None]
+            P_vap_y = [P_vap_plot[i] for i,v in enumerate(v_vap_plot) if v is not None]
+
+            fig.add_trace(go.Scatter(x=v_liq_x, y=P_liq_y, mode='lines', name="Líquido saturado"))
+            fig.add_trace(go.Scatter(x=v_vap_x, y=P_vap_y, mode='lines', name="Vapor saturado"))
+            fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
+
+            x_vals = [h["resultado"].get("v") for h in hist if h["resultado"].get("v") is not None]
+            y_vals = [h["resultado"].get("P") for h in hist if h["resultado"].get("P") is not None]
+
+        # puntos históricos y flechas
+        if x_vals and y_vals and len(x_vals) == len(y_vals):
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=y_vals,
+                mode='markers+text',
+                text=[str(i) for i in range(len(x_vals))],
+                textposition="top right",
+                marker=dict(size=8, color='red'),
+                name="Historial"
+            ))
+            for i in range(len(x_vals)-1):
+                fig.add_annotation(
+                    x=x_vals[i+1],
+                    y=y_vals[i+1],
+                    ax=x_vals[i],
+                    ay=y_vals[i],
+                    xref="x",
+                    yref="y",
+                    axref="x",
+                    ayref="y",
+                    showarrow=True,
+                    arrowhead=3,
+                    arrowsize=1,
+                    arrowwidth=1.5,
+                    arrowcolor="green"
+                )
+            # traza invisible para la leyenda 'Sentido'
+            fig.add_trace(go.Scatter(
+                x=[None],
+                y=[None],
+                mode='lines',
+                line=dict(color='green', width=2),
+                name="Sentido"
+            ))
+
+    except Exception as e:
+        st.write("No se pudo generar la curva de saturación:", e)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# === Sección de contacto plegable ===
+with st.expander("Contacto"):
+    st.write("**Creador:** Greco Agustin")
+    st.write("**Contacto:** pvt.student657@passfwd.com")
+    st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
