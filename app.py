@@ -170,82 +170,30 @@ def from_SI(prop, val, unit):
         return val
 
 # === Función para calcular P a partir de (T,H) o (T,U) ===
-def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H"):
+def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False):
     """
-    Calcula la presión (Pa) para un valor dado de entalpía (H) o energía interna (U) y temperatura T_SI [K].
-    prop = "H" o "U".
-    Estrategia:
-      1) Intentar CP.PropsSI("P","T",T,"H",h,fluid) directamente.
-      2) Si falla, usar brentq buscando un intervalo con cambio de signo. Usamos desde ptriple a pcrit y
-         si no hay cambio de signo expandimos los límites logarítmicamente hasta un rango amplio.
-    Retorna: P (Pa) o None si no se pudo encontrar.
+    Calcula la presión (Pa) para un valor dado de entalpía o energía interna y temperatura.
+    Si 'dentro_campana' es True, se devuelve la presión de saturación.
     """
-    # Intento directo (algunas versiones de CoolProp responden correctamente)
     try:
-        P_direct = CP.PropsSI("P", "T", T_SI, prop, val_SI, fluid)
-        if (P_direct is not None) and (not math.isnan(P_direct)) and (P_direct > 0):
-            return P_direct
-    except Exception:
-        pass
+        if prop == "H":
+            val_liq = CP.PropsSI("H", "T", T_SI, "Q", 0, fluid)
+            val_vap = CP.PropsSI("H", "T", T_SI, "Q", 1, fluid)
+        else:  # U
+            val_liq = CP.PropsSI("U", "T", T_SI, "Q", 0, fluid)
+            val_vap = CP.PropsSI("U", "T", T_SI, "Q", 1, fluid)
 
-    # Obtengo límites físicos
-    try:
-        p_min = CP.PropsSI("ptriple", fluid)
-    except Exception:
-        p_min = 1e-3  # fallback
-    try:
-        p_max = CP.PropsSI("pcrit", fluid)
-    except Exception:
-        p_max = 1e8
+        if dentro_campana:
+            # Si el usuario marcó "dentro de la campana", devolvemos presión de saturación
+            return CP.PropsSI("P", "T", T_SI, "Q", 0, fluid)
 
-    # Asegurar rangos razonables
-    p_min = max(p_min, 1e-6)
-    p_max = max(p_max, p_min * 10.0)
-
-    def f(P):
-        try:
+        # Si no está en la campana o el usuario indicó "fuera"
+        def f(P):
             return CP.PropsSI(prop, "T", T_SI, "P", P, fluid) - val_SI
-        except Exception:
-            # Si CoolProp no puede evaluar en ese P devolvemos nan para que no rompa
-            return float("nan")
 
-    # Primero intento dentro de ptriple..pcrit (si es válido)
-    try:
-        f_lo = f(p_min)
-        f_hi = f(p_max)
-        if math.isfinite(f_lo) and math.isfinite(f_hi) and f_lo * f_hi < 0:
-            return opt.brentq(f, p_min, p_max)
+        return opt.brentq(f, 100, 1e8)
     except Exception:
-        pass
-
-    # Si no hay cambio de signo, expandimos búsqueda en escala log (por ejemplo desde 1e-6 a 1e9)
-    # Buscamos intervalos por potencias de 10 hasta cierto límite
-    ex_lo = -9  # 1e-9 Pa lower (prácticamente vacuum)
-    ex_hi = 9   # 1e9 Pa upper
-    found = None
-    prev_P = None
-    prev_f = None
-
-    for e in range(ex_lo, ex_hi + 1):
-        P_try = 10.0 ** e
-        f_try = f(P_try)
-        if prev_P is None:
-            prev_P, prev_f = P_try, f_try
-            continue
-        # verificar si alguno es nan -> skip
-        if not (math.isfinite(prev_f) and math.isfinite(f_try)):
-            prev_P, prev_f = P_try, f_try
-            continue
-        if prev_f * f_try < 0:
-            # bracket encontrado
-            try:
-                return opt.brentq(f, prev_P, P_try)
-            except Exception:
-                pass
-        prev_P, prev_f = P_try, f_try
-
-    # Si llegamos acá no se encontró raíz
-    return None
+        return None
 
 # === Función principal modificada ===
 def get_state(prop1, val1, prop2, val2, fluid):
@@ -538,5 +486,6 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
