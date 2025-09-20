@@ -335,30 +335,27 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
         P_val = CP.PropsSI("P", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         h_val = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         
-        # Calcular propiedades de saturación
+        # Calcular propiedades de saturación a la temperatura actual
         try:
-            # Intentar calcular a la temperatura actual
             P_sat_at_T = CP.PropsSI("P", "T", T_val, "Q", 0, fluid)
             h_l_sat = CP.PropsSI("H", "T", T_val, "Q", 0, fluid)
             h_v_sat = CP.PropsSI("H", "T", T_val, "Q", 1, fluid)
             
             # Tolerancias (ajustables según necesidad)
-            tol_pres = 10  # Pa
-            tol_enth = 10  # J/kg
+            tol_pres = 100  # Pa (más flexible para manejar errores numéricos)
+            tol_enth = 100  # J/kg (más flexible)
             
-            # Verificar si está en la curva de saturación
-            on_saturation_curve = (abs(P_val - P_sat_at_T) < tol_pres)
-            
-            if on_saturation_curve:
-                # En la curva de saturación
-                if results["x"] == 0.0:
+            # Determinar el estado basado en comparación con valores de saturación
+            if abs(P_val - P_sat_at_T) < tol_pres:
+                # Está en la curva de saturación
+                if results.get("x", 0) == 0.0:
                     estado = "Líquido saturado"
-                elif results["x"] == 1.0:
+                elif results.get("x", 0) == 1.0:
                     estado = "Vapor saturado"
                 else:
                     estado = "Mezcla líquido-vapor"
             else:
-                # Fuera de la curva de saturación
+                # Está fuera de la curva de saturación
                 if h_val < h_l_sat - tol_enth:
                     estado = "Líquido subenfriado"
                     results["x"] = 0.0  # Forzar x=0 para líquido subenfriado
@@ -366,12 +363,12 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
                     estado = "Vapor sobrecalentado"
                     results["x"] = 1.0  # Forzar x=1 para vapor sobrecalentado
                 else:
-                    # Dentro de la campana (pero no en la curva de saturación)
+                    # Está dentro de la campana pero no en la curva de saturación
                     estado = "Mezcla líquido-vapor"
             
             results["estado_termodinamico"] = estado
             
-        except Exception:
+        except Exception as e:
             # Si falla el cálculo de saturación a T, intentar a P
             try:
                 T_sat_at_P = CP.PropsSI("T", "P", P_val, "Q", 0, fluid)
@@ -379,22 +376,19 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
                 h_v_sat = CP.PropsSI("H", "P", P_val, "Q", 1, fluid)
                 
                 # Tolerancias
-                tol_temp = 0.1  # K
-                tol_enth = 10   # J/kg
+                tol_temp = 0.5  # K (más flexible)
+                tol_enth = 100  # J/kg
                 
-                # Verificar si está en la curva de saturación
-                on_saturation_curve = (abs(T_val - T_sat_at_P) < tol_temp)
-                
-                if on_saturation_curve:
-                    # En la curva de saturación
-                    if results["x"] == 0.0:
+                if abs(T_val - T_sat_at_P) < tol_temp:
+                    # Está en la curva de saturación
+                    if results.get("x", 0) == 0.0:
                         estado = "Líquido saturado"
-                    elif results["x"] == 1.0:
+                    elif results.get("x", 0) == 1.0:
                         estado = "Vapor saturado"
                     else:
                         estado = "Mezcla líquido-vapor"
                 else:
-                    # Fuera de la curva de saturación
+                    # Está fuera de la curva de saturación
                     if h_val < h_l_sat - tol_enth:
                         estado = "Líquido subenfriado"
                         results["x"] = 0.0
@@ -402,27 +396,28 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
                         estado = "Vapor sobrecalentado"
                         results["x"] = 1.0
                     else:
-                        # Dentro de la campana (pero no en la curva de saturación)
+                        # Está dentro de la campana pero no en la curva de saturación
                         estado = "Mezcla líquido-vapor"
                 
                 results["estado_termodinamico"] = estado
                 
-            except Exception:
+            except Exception as e2:
                 # Si ambos métodos fallan, usar método simple basado en calidad
-                if results["x"] == 0.0:
+                if results.get("x", 0) == 0.0:
                     estado = "Líquido"
-                elif results["x"] == 1.0:
+                elif results.get("x", 0) == 1.0:
                     estado = "Vapor"
                 else:
                     estado = "Mezcla líquido-vapor"
                 results["estado_termodinamico"] = estado
                 
-    except Exception:
+    except Exception as e:
         # Si falla completamente, no agregar información de estado
+        print(f"Error determinando estado termodinámico: {e}")
         pass
     
     return results
-
+    
 # === Streamlit UI ===
 st.title("PVT by Greec 🌡️💨")
 st.subheader("Calculadora de propiedades termodinámicas")
@@ -924,5 +919,6 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
