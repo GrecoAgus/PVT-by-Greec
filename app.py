@@ -926,7 +926,7 @@ with st.expander("Mostrar Gráfico"):
                     arrowhead=3,
                     arrowsize=1,
                     arrowwidth=1.5,
-                    arrowcolor="purple"
+                    arrowcolor="green"
                 )
             
             # Añadir traza invisible para la leyenda de flechas
@@ -947,6 +947,7 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
