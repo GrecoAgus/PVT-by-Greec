@@ -328,8 +328,8 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
     except Exception:
         results["cp"], results["cv"], results["k"] = None, None, None
     
-        # Corrección inteligente para la calidad (x) - indicar estado termodinámico
-        try:
+    # Corrección inteligente para la calidad (x) - indicar estado termodinámico
+    try:  # <- Este try estaba sin indentación adecuada
         if "x" in results:
             # Obtener temperatura y presión del estado
             T_val = CP.PropsSI("T", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
@@ -900,3 +900,4 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
