@@ -335,18 +335,18 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
         P_val = CP.PropsSI("P", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         h_val = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
         
-        # Calcular propiedades de saturación a la temperatura actual
+        # Calcular propiedades de saturación a la presión actual
         try:
-            P_sat_at_T = CP.PropsSI("P", "T", T_val, "Q", 0, fluid)
-            h_l_sat = CP.PropsSI("H", "T", T_val, "Q", 0, fluid)
-            h_v_sat = CP.PropsSI("H", "T", T_val, "Q", 1, fluid)
+            T_sat = CP.PropsSI("T", "P", P_val, "Q", 0, fluid)
+            h_l_sat = CP.PropsSI("H", "P", P_val, "Q", 0, fluid)
+            h_v_sat = CP.PropsSI("H", "P", P_val, "Q", 1, fluid)
             
             # Tolerancias (ajustables según necesidad)
-            tol_pres = 100  # Pa (más flexible para manejar errores numéricos)
-            tol_enth = 100  # J/kg (más flexible)
+            tol_temp = 0.1  # K
+            tol_enth = 100  # J/kg
             
             # Determinar el estado basado en comparación con valores de saturación
-            if abs(P_val - P_sat_at_T) < tol_pres:
+            if abs(T_val - T_sat) < tol_temp:
                 # Está en la curva de saturación
                 if results.get("x", 0) == 0.0:
                     estado = "Líquido saturado"
@@ -369,17 +369,17 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
             results["estado_termodinamico"] = estado
             
         except Exception as e:
-            # Si falla el cálculo de saturación a T, intentar a P
+            # Si falla el cálculo de saturación a P, intentar a T
             try:
-                T_sat_at_P = CP.PropsSI("T", "P", P_val, "Q", 0, fluid)
-                h_l_sat = CP.PropsSI("H", "P", P_val, "Q", 0, fluid)
-                h_v_sat = CP.PropsSI("H", "P", P_val, "Q", 1, fluid)
+                P_sat = CP.PropsSI("P", "T", T_val, "Q", 0, fluid)
+                h_l_sat = CP.PropsSI("H", "T", T_val, "Q", 0, fluid)
+                h_v_sat = CP.PropsSI("H", "T", T_val, "Q", 1, fluid)
                 
                 # Tolerancias
-                tol_temp = 0.5  # K (más flexible)
+                tol_pres = 100  # Pa
                 tol_enth = 100  # J/kg
                 
-                if abs(T_val - T_sat_at_P) < tol_temp:
+                if abs(P_val - P_sat) < tol_pres:
                     # Está en la curva de saturación
                     if results.get("x", 0) == 0.0:
                         estado = "Líquido saturado"
@@ -919,6 +919,7 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
