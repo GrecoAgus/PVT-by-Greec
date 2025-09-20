@@ -832,6 +832,9 @@ with st.expander("Mostrar Gráfico"):
         puntos_mezcla = []
         puntos_saturado = []
         otros_puntos = []
+        
+        # Lista para todos los puntos en orden (para las flechas)
+        todos_los_puntos = []
 
         for i, h in enumerate(hist):
             try:
@@ -850,16 +853,21 @@ with st.expander("Mostrar Gráfico"):
                     # Verificar adicionalmente que no sean valores extremos
                     if (abs(x_val) < 1e10 and abs(y_val) < 1e10):
                         estado = h["resultado"].get("estado_termodinamico", "")
+                        punto_info = (x_val, y_val, i)
+                        
+                        # Agregar a la lista de todos los puntos
+                        todos_los_puntos.append(punto_info)
+                        
                         if estado == "Líquido subenfriado":
-                            puntos_liquido_sub.append((x_val, y_val, i))
+                            puntos_liquido_sub.append(punto_info)
                         elif estado == "Vapor sobrecalentado":
-                            puntos_vapor_sup.append((x_val, y_val, i))
+                            puntos_vapor_sup.append(punto_info)
                         elif estado == "Mezcla líquido-vapor":
-                            puntos_mezcla.append((x_val, y_val, i))
+                            puntos_mezcla.append(punto_info)
                         elif estado == "Líquido saturado" or estado == "Vapor saturado":
-                            puntos_saturado.append((x_val, y_val, i))
+                            puntos_saturado.append(punto_info)
                         else:
-                            otros_puntos.append((x_val, y_val, i))
+                            otros_puntos.append(punto_info)
                             
             except (TypeError, ValueError):
                 continue
@@ -900,6 +908,35 @@ with st.expander("Mostrar Gráfico"):
                 textposition="top right", marker=dict(size=8, color='gray'), name="Otros"
             ))
 
+        # Dibujar flechas conectando los puntos en orden
+        if len(todos_los_puntos) > 1:
+            # Ordenar puntos por índice (orden en el historial)
+            todos_los_puntos.sort(key=lambda x: x[2])
+            
+            for i in range(len(todos_los_puntos)-1):
+                x1, y1, idx1 = todos_los_puntos[i]
+                x2, y2, idx2 = todos_los_puntos[i+1]
+                
+                fig.add_annotation(
+                    x=x2, y=y2,
+                    ax=x1, ay=y1,
+                    xref="x", yref="y",
+                    axref="x", ayref="y",
+                    showarrow=True,
+                    arrowhead=3,
+                    arrowsize=1,
+                    arrowwidth=1.5,
+                    arrowcolor="purple"
+                )
+            
+            # Añadir traza invisible para la leyenda de flechas
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='lines',
+                line=dict(color='purple', width=2),
+                name="Secuencia de cálculos"
+            ))
+
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
 
@@ -910,6 +947,7 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
