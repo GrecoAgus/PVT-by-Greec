@@ -328,6 +328,42 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
     except Exception:
         results["cp"], results["cv"], results["k"] = None, None, None
     
+    # Corrección inteligente para la calidad (x) - indicar estado termodinámico
+    try:
+        if "x" in results:
+            # Obtener temperatura y presión del estado
+            T_val = CP.PropsSI("T", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+            P_val = CP.PropsSI("P", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+            
+            # Calcular temperatura de saturación a esta presión
+            T_sat = CP.PropsSI("T", "P", P_val, "Q", 0, fluid)
+            
+            if math.isfinite(T_sat) and math.isfinite(T_val):
+                tol = 1e-3  # Tolerancia de 0.001 K
+                
+                # Determinar estado termodinámico
+                if T_val < T_sat - tol:
+                    # Líquido subenfriado (fuera de campana)
+                    estado = "Líquido subenfriado"
+                elif T_val > T_sat + tol:
+                    # Vapor sobrecalentado (fuera de campana)
+                    estado = "Vapor sobrecalentado"
+                else:
+                    # En la curva de saturación
+                    if results["x"] == 0.0:
+                        estado = "Líquido saturado"
+                    elif results["x"] == 1.0:
+                        estado = "Vapor saturado"
+                    else:
+                        estado = "Mezcla líquido-vapor"
+                
+                # Agregar información del estado al resultado
+                results["estado_termodinamico"] = estado
+                
+    except Exception:
+        # Si falla el cálculo, no agregar información de estado
+        pass
+    
     return results
 
 # === Streamlit UI ===
@@ -546,14 +582,18 @@ if st.button("Calcular"):
         # Usar CoolProp directamente
         results = calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluido_cp)
         
-        # Mostrar resultados
+       # Mostrar resultados
         st.subheader("Resultados")
+        if "estado_termodinamico" in results:
+            st.info(f"**Estado termodinámico:** {results['estado_termodinamico']}")
+        
         for k, v in results.items():
-            if v is not None:
-                unit = output_units.get(k, "")
-                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-            else:
-                st.write(f"**{display_names.get(k,k)}**: No disponible")
+            if k != "estado_termodinamico":  # No mostrar el campo de estado en la lista normal
+                if v is not None:
+                    unit = output_units.get(k, "")
+                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                else:
+                    st.write(f"**{display_names.get(k,k)}**: No disponible")
         
         # Guardar en historial
         if len(st.session_state['historial']) >= 20:
@@ -619,8 +659,20 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=S_vap_x, y=S_vap_y, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
 
-            x_vals = [h["resultado"].get("s") for h in hist if h["resultado"].get("s") is not None]
-            y_vals = [h["resultado"].get("T") for h in hist if h["resultado"].get("T") is not None]
+            # Filtrar puntos válidos del historial (solo los que tienen ambos valores y son números finitos)
+            puntos_validos = []
+            for i, h in enumerate(hist):
+                x_val = h["resultado"].get("s")
+                y_val = h["resultado"].get("T")
+                if (x_val is not None and y_val is not None and 
+                    math.isfinite(x_val) and math.isfinite(y_val)):
+                    puntos_validos.append((x_val, y_val, i))
+
+            # Separar en listas para el gráfico
+            if puntos_validos:
+                x_vals, y_vals, indices = zip(*puntos_validos)
+            else:
+                x_vals, y_vals, indices = [], [], []
 
         else:  # P vs v
             P_liq = []
@@ -661,55 +713,70 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=v_vap_x, y=P_vap_y, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
 
-            x_vals = [h["resultado"].get("v") for h in hist if h["resultado"].get("v") is not None]
-            y_vals = [h["resultado"].get("P") for h in hist if h["resultado"].get("P") is not None]
+            # Filtrar puntos válidos del historial (solo los que tienen ambos valores y son números finitos)
+            puntos_validos = []
+            for i, h in enumerate(hist):
+                x_val = h["resultado"].get("v")
+                y_val = h["resultado"].get("P")
+                if (x_val is not None and y_val is not None and 
+                    math.isfinite(x_val) and math.isfinite(y_val)):
+                    puntos_validos.append((x_val, y_val, i))
 
-        # puntos históricos y flechas
+            # Separar en listas para el gráfico
+            if puntos_validos:
+                x_vals, y_vals, indices = zip(*puntos_validos)
+            else:
+                x_vals, y_vals, indices = [], [], []
+
+        # puntos históricos y flechas (solo si hay puntos válidos)
         if x_vals and y_vals and len(x_vals) == len(y_vals):
             fig.add_trace(go.Scatter(
                 x=x_vals,
                 y=y_vals,
                 mode='markers+text',
-                text=[str(i) for i in range(len(x_vals))],
+                text=[str(i+1) for i in indices],  # Mostrar número del punto
                 textposition="top right",
                 marker=dict(size=8, color='red'),
                 name="Historial"
             ))
-            for i in range(len(x_vals)-1):
-                fig.add_annotation(
-                    x=x_vals[i+1],
-                    y=y_vals[i+1],
-                    ax=x_vals[i],
-                    ay=y_vals[i],
-                    xref="x",
-                    yref="y",
-                    axref="x",
-                    ayref="y",
-                    showarrow=True,
-                    arrowhead=3,
-                    arrowsize=1,
-                    arrowwidth=1.5,
-                    arrowcolor="green"
-                )
-            # traza invisible para la leyenda 'Sentido'
-            fig.add_trace(go.Scatter(
-                x=[None],
-                y=[None],
-                mode='lines',
-                line=dict(color='green', width=2),
-                name="Sentido"
-            ))
+            
+            # Solo dibujar flechas si hay más de un punto
+            if len(x_vals) > 1:
+                for i in range(len(x_vals)-1):
+                    fig.add_annotation(
+                        x=x_vals[i+1],
+                        y=y_vals[i+1],
+                        ax=x_vals[i],
+                        ay=y_vals[i],
+                        xref="x",
+                        yref="y",
+                        axref="x",
+                        ayref="y",
+                        showarrow=True,
+                        arrowhead=3,
+                        arrowsize=1,
+                        arrowwidth=1.5,
+                        arrowcolor="green"
+                    )
+                # traza invisible para la leyenda 'Sentido'
+                fig.add_trace(go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode='lines',
+                    line=dict(color='green', width=2),
+                    name="Sentido"
+                ))
 
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig, use_container_width=True)
-
 # === Sección de contacto plegable ===
 with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
