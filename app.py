@@ -787,35 +787,6 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=S_vap_x, y=S_vap_y, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
 
-            # Filtrar puntos válidos del historial (solo los que tienen ambos valores y son números finitos)
-            puntos_validos = []
-            for i, h in enumerate(hist):
-                try:
-                    if grafico_tipo == "T vs S":
-                        x_val = h["resultado"].get("s")
-                        y_val = h["resultado"].get("T")
-                    else:  # P vs v
-                        x_val = h["resultado"].get("v")
-                        y_val = h["resultado"].get("P")
-                    
-                    # Verificar que los valores son numéricos y finitos
-                    if (x_val is not None and y_val is not None and 
-                        isinstance(x_val, (int, float)) and isinstance(y_val, (int, float)) and
-                        math.isfinite(x_val) and math.isfinite(y_val)):
-                        
-                        # Verificar adicionalmente que no sean valores extremos (posibles errores)
-                        if (abs(x_val) < 1e10 and abs(y_val) < 1e10):  # Ajustar límites según necesidad
-                            puntos_validos.append((x_val, y_val, i))
-                            
-                except (TypeError, ValueError):
-                    continue
-                    
-            # Separar en listas para el gráfico
-            if puntos_validos:
-                x_vals, y_vals, indices = zip(*puntos_validos)
-            else:
-                x_vals, y_vals, indices = [], [], []
-
         else:  # P vs v
             P_liq = []
             P_vap = []
@@ -855,70 +826,91 @@ with st.expander("Mostrar Gráfico"):
             fig.add_trace(go.Scatter(x=v_vap_x, y=P_vap_y, mode='lines', name="Vapor saturado"))
             fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
 
-            # Filtrar puntos válidos del historial (solo los que tienen ambos valores y son números finitos)
-            puntos_validos = []
-            for i, h in enumerate(hist):
-                x_val = h["resultado"].get("v")
-                y_val = h["resultado"].get("P")
+        # Filtrar puntos válidos del historial y separar por estado termodinámico
+        puntos_liquido_sub = []
+        puntos_vapor_sup = []
+        puntos_mezcla = []
+        puntos_saturado = []
+        otros_puntos = []
+
+        for i, h in enumerate(hist):
+            try:
+                if grafico_tipo == "T vs S":
+                    x_val = h["resultado"].get("s")
+                    y_val = h["resultado"].get("T")
+                else:  # P vs v
+                    x_val = h["resultado"].get("v")
+                    y_val = h["resultado"].get("P")
+                
+                # Verificar que los valores son numéricos y finitos
                 if (x_val is not None and y_val is not None and 
+                    isinstance(x_val, (int, float)) and isinstance(y_val, (int, float)) and
                     math.isfinite(x_val) and math.isfinite(y_val)):
-                    puntos_validos.append((x_val, y_val, i))
+                    
+                    # Verificar adicionalmente que no sean valores extremos
+                    if (abs(x_val) < 1e10 and abs(y_val) < 1e10):
+                        estado = h["resultado"].get("estado_termodinamico", "")
+                        if estado == "Líquido subenfriado":
+                            puntos_liquido_sub.append((x_val, y_val, i))
+                        elif estado == "Vapor sobrecalentado":
+                            puntos_vapor_sup.append((x_val, y_val, i))
+                        elif estado == "Mezcla líquido-vapor":
+                            puntos_mezcla.append((x_val, y_val, i))
+                        elif estado == "Líquido saturado" or estado == "Vapor saturado":
+                            puntos_saturado.append((x_val, y_val, i))
+                        else:
+                            otros_puntos.append((x_val, y_val, i))
+                            
+            except (TypeError, ValueError):
+                continue
 
-            # Separar en listas para el gráfico
-            if puntos_validos:
-                x_vals, y_vals, indices = zip(*puntos_validos)
-            else:
-                x_vals, y_vals, indices = [], [], []
-
-        # puntos históricos y flechas (solo si hay puntos válidos)
-        if x_vals and y_vals and len(x_vals) == len(y_vals):
+        # Crear trazas para cada estado termodinámico
+        if puntos_liquido_sub:
+            x_vals, y_vals, indices = zip(*puntos_liquido_sub)
             fig.add_trace(go.Scatter(
-                x=x_vals,
-                y=y_vals,
-                mode='markers+text',
-                text=[str(i+1) for i in indices],  # Mostrar número del punto
-                textposition="top right",
-                marker=dict(size=8, color='red'),
-                name="Historial"
+                x=x_vals, y=y_vals, mode='markers+text', text=[str(i+1) for i in indices],
+                textposition="top right", marker=dict(size=8, color='blue'), name="Líquido subenfriado"
             ))
-            
-            # Solo dibujar flechas si hay más de un punto
-            if len(x_vals) > 1:
-                for i in range(len(x_vals)-1):
-                    fig.add_annotation(
-                        x=x_vals[i+1],
-                        y=y_vals[i+1],
-                        ax=x_vals[i],
-                        ay=y_vals[i],
-                        xref="x",
-                        yref="y",
-                        axref="x",
-                        ayref="y",
-                        showarrow=True,
-                        arrowhead=3,
-                        arrowsize=1,
-                        arrowwidth=1.5,
-                        arrowcolor="green"
-                    )
-                # traza invisible para la leyenda 'Sentido'
-                fig.add_trace(go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode='lines',
-                    line=dict(color='green', width=2),
-                    name="Sentido"
-                ))
+
+        if puntos_vapor_sup:
+            x_vals, y_vals, indices = zip(*puntos_vapor_sup)
+            fig.add_trace(go.Scatter(
+                x=x_vals, y=y_vals, mode='markers+text', text=[str(i+1) for i in indices],
+                textposition="top right", marker=dict(size=8, color='red'), name="Vapor sobrecalentado"
+            ))
+
+        if puntos_mezcla:
+            x_vals, y_vals, indices = zip(*puntos_mezcla)
+            fig.add_trace(go.Scatter(
+                x=x_vals, y=y_vals, mode='markers+text', text=[str(i+1) for i in indices],
+                textposition="top right", marker=dict(size=8, color='green'), name="Mezcla"
+            ))
+
+        if puntos_saturado:
+            x_vals, y_vals, indices = zip(*puntos_saturado)
+            fig.add_trace(go.Scatter(
+                x=x_vals, y=y_vals, mode='markers+text', text=[str(i+1) for i in indices],
+                textposition="top right", marker=dict(size=8, color='orange'), name="Saturado"
+            ))
+
+        if otros_puntos:
+            x_vals, y_vals, indices = zip(*otros_puntos)
+            fig.add_trace(go.Scatter(
+                x=x_vals, y=y_vals, mode='markers+text', text=[str(i+1) for i in indices],
+                textposition="top right", marker=dict(size=8, color='gray'), name="Otros"
+            ))
 
     except Exception as e:
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig, use_container_width=True)
-
+    
 # === Sección de contacto plegable ===
 with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
