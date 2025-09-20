@@ -692,6 +692,7 @@ if hist:
 with st.expander("Mostrar Gráfico"):
     grafico_tipo = st.selectbox("Selecciona diagrama", ["T vs S", "P vs v"])
     fig = go.Figure()
+
     try:
         fluid = fluido_cp
         T_triple = CP.PropsSI('Ttriple', fluid)
@@ -714,132 +715,89 @@ with st.expander("Mostrar Gráfico"):
                     S_vap.append(CP.PropsSI('S', 'T', T, 'Q', 1, fluid))
                 except Exception:
                     S_vap.append(np.nan)
-            S_liq_plot = [from_SI("s", s, output_units["s"]) if (s is not None and np.isfinite(s)) else None for s in S_liq]
-            S_vap_plot = [from_SI("s", s, output_units["s"]) if (s is not None and np.isfinite(s)) else None for s in S_vap]
-            S_liq_x = [s for s in S_liq_plot if s is not None]
-            S_liq_y = [T_plot[i] for i,s in enumerate(S_liq_plot) if s is not None]
-            S_vap_x = [s for s in S_vap_plot if s is not None]
-            S_vap_y = [T_plot[i] for i,s in enumerate(S_vap_plot) if s is not None]
+            
+            S_liq_plot = [from_SI("s", s, output_units["s"]) for s in S_liq]
+            S_vap_plot = [from_SI("s", s, output_units["s"]) for s in S_vap]
 
-            fig.add_trace(go.Scatter(x=S_liq_x, y=S_liq_y, mode='lines', name="Líquido saturado"))
-            fig.add_trace(go.Scatter(x=S_vap_x, y=S_vap_y, mode='lines', name="Vapor saturado"))
-            fig.update_layout(xaxis_title=f"S ({output_units['s']})", yaxis_title=f"T ({output_units['T']})")
+            fig.add_trace(go.Scatter(x=S_liq_plot, y=T_plot, mode='lines', name='Línea de líquido saturado'))
+            fig.add_trace(go.Scatter(x=S_vap_plot, y=T_plot, mode='lines', name='Línea de vapor saturado'))
 
-            # Filtrar puntos válidos del historial (solo los que tienen ambos valores y son números finitos)
-            puntos_validos = []
-            for i, h in enumerate(hist):
-                x_val = h["resultado"].get("s")
-                y_val = h["resultado"].get("T")
-                if (x_val is not None and y_val is not None and 
-                    math.isfinite(x_val) and math.isfinite(y_val)):
-                    puntos_validos.append((x_val, y_val, i))
+            # Corregir la lógica para graficar los puntos del historial
+            if hist:
+                for i, entry in enumerate(hist):
+                    res = entry['resultado']
+                    if 'T' in res and 's' in res:
+                        T_point = res['T']
+                        S_point = res['s']
+                        estado = res.get('estado_termodinamico', 'Desconocido')
+                        
+                        if T_point is not None and S_point is not None and math.isfinite(T_point) and math.isfinite(S_point):
+                            fig.add_trace(go.Scatter(
+                                x=[S_point], 
+                                y=[T_point], 
+                                mode='markers', 
+                                name=f'Punto {i+1} ({estado})',
+                                marker=dict(size=10, symbol='circle')
+                            ))
 
-            # Separar en listas para el gráfico
-            if puntos_validos:
-                x_vals, y_vals, indices = zip(*puntos_validos)
-            else:
-                x_vals, y_vals, indices = [], [], []
+            fig.update_layout(
+                title=f'Diagrama T-S para {fluido_seleccionado}',
+                xaxis_title=f"Entropía ({output_units['s']})",
+                yaxis_title=f"Temperatura ({output_units['T']})",
+                legend_title_text="Curvas de Saturación",
+                template="plotly_white"
+            )
 
-        else:  # P vs v
-            P_liq = []
-            P_vap = []
-            v_liq = []
-            v_vap = []
+        elif grafico_tipo == "P vs v":
+            V_liq = []
+            V_vap = []
+            P_plot = [CP.PropsSI('P', 'T', T, 'Q', 0, fluid) for T in T_vals]
+            P_plot_unit = [from_SI("P", p, output_units["P"]) for p in P_plot]
+            
             for T in T_vals:
                 try:
-                    P_liq.append(CP.PropsSI('P', 'T', T, 'Q', 0, fluid))
+                    V_liq.append(1/CP.PropsSI('D', 'T', T, 'Q', 0, fluid))
                 except Exception:
-                    P_liq.append(np.nan)
+                    V_liq.append(np.nan)
                 try:
-                    P_vap.append(CP.PropsSI('P', 'T', T, 'Q', 1, fluid))
+                    V_vap.append(1/CP.PropsSI('D', 'T', T, 'Q', 1, fluid))
                 except Exception:
-                    P_vap.append(np.nan)
-                try:
-                    d_liq = CP.PropsSI('D', 'T', T, 'Q', 0, fluid)
-                    v_liq.append(1.0/d_liq if (d_liq is not None and d_liq != 0) else np.nan)
-                except Exception:
-                    v_liq.append(np.nan)
-                try:
-                    d_vap = CP.PropsSI('D', 'T', T, 'Q', 1, fluid)
-                    v_vap.append(1.0/d_vap if (d_vap is not None and d_vap != 0) else np.nan)
-                except Exception:
-                    v_vap.append(np.nan)
-
-            P_liq_plot = [from_SI("P", p, output_units["P"]) if (p is not None and np.isfinite(p)) else None for p in P_liq]
-            P_vap_plot = [from_SI("P", p, output_units["P"]) if (p is not None and np.isfinite(p)) else None for p in P_vap]
-            v_liq_plot = [from_SI("v", v, output_units["v"]) if (v is not None and np.isfinite(v)) else None for v in v_liq]
-            v_vap_plot = [from_SI("v", v, output_units["v"]) if (v is not None and np.isfinite(v)) else None for v in v_vap]
-
-            v_liq_x = [v for v in v_liq_plot if v is not None]
-            P_liq_y = [P_liq_plot[i] for i,v in enumerate(v_liq_plot) if v is not None]
-            v_vap_x = [v for v in v_vap_plot if v is not None]
-            P_vap_y = [P_vap_plot[i] for i,v in enumerate(v_vap_plot) if v is not None]
-
-            fig.add_trace(go.Scatter(x=v_liq_x, y=P_liq_y, mode='lines', name="Líquido saturado"))
-            fig.add_trace(go.Scatter(x=v_vap_x, y=P_vap_y, mode='lines', name="Vapor saturado"))
-            fig.update_layout(xaxis_title=f"v ({output_units['v']})", yaxis_title=f"P ({output_units['P']})")
-
-            # Filtrar puntos válidos del historial (solo los que tienen ambos valores y son números finitos)
-            puntos_validos = []
-            for i, h in enumerate(hist):
-                x_val = h["resultado"].get("v")
-                y_val = h["resultado"].get("P")
-                if (x_val is not None and y_val is not None and 
-                    math.isfinite(x_val) and math.isfinite(y_val)):
-                    puntos_validos.append((x_val, y_val, i))
-
-            # Separar en listas para el gráfico
-            if puntos_validos:
-                x_vals, y_vals, indices = zip(*puntos_validos)
-            else:
-                x_vals, y_vals, indices = [], [], []
-
-        # puntos históricos y flechas (solo si hay puntos válidos)
-        if x_vals and y_vals and len(x_vals) == len(y_vals):
-            fig.add_trace(go.Scatter(
-                x=x_vals,
-                y=y_vals,
-                mode='markers+text',
-                text=[str(i+1) for i in indices],  # Mostrar número del punto
-                textposition="top right",
-                marker=dict(size=8, color='red'),
-                name="Historial"
-            ))
+                    V_vap.append(np.nan)
             
-            # Solo dibujar flechas si hay más de un punto
-            if len(x_vals) > 1:
-                for i in range(len(x_vals)-1):
-                    fig.add_annotation(
-                        x=x_vals[i+1],
-                        y=y_vals[i+1],
-                        ax=x_vals[i],
-                        ay=y_vals[i],
-                        xref="x",
-                        yref="y",
-                        axref="x",
-                        ayref="y",
-                        showarrow=True,
-                        arrowhead=3,
-                        arrowsize=1,
-                        arrowwidth=1.5,
-                        arrowcolor="green"
-                    )
-                # traza invisible para la leyenda 'Sentido'
-                fig.add_trace(go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode='lines',
-                    line=dict(color='green', width=2),
-                    name="Sentido"
-                ))
+            V_liq_plot = [from_SI("v", v, output_units["v"]) for v in V_liq]
+            V_vap_plot = [from_SI("v", v, output_units["v"]) for v in V_vap]
+
+            fig.add_trace(go.Scatter(x=V_liq_plot, y=P_plot_unit, mode='lines', name='Línea de líquido saturado'))
+            fig.add_trace(go.Scatter(x=V_vap_plot, y=P_plot_unit, mode='lines', name='Línea de vapor saturado'))
+            
+            # Corregir la lógica para graficar los puntos del historial
+            if hist:
+                for i, entry in enumerate(hist):
+                    res = entry['resultado']
+                    if 'P' in res and 'v' in res:
+                        P_point = res['P']
+                        V_point = res['v']
+                        estado = res.get('estado_termodinamico', 'Desconocido')
+                        
+                        if P_point is not None and V_point is not None and math.isfinite(P_point) and math.isfinite(V_point):
+                            fig.add_trace(go.Scatter(
+                                x=[V_point], 
+                                y=[P_point], 
+                                mode='markers', 
+                                name=f'Punto {i+1} ({estado})',
+                                marker=dict(size=10, symbol='circle')
+                            ))
+
+            fig.update_layout(
+                title=f'Diagrama P-v para {fluido_seleccionado}',
+                xaxis_title=f"Volumen Específico ({output_units['v']})",
+                yaxis_title=f"Presión ({output_units['P']})",
+                yaxis_type="log", # Usar escala logarítmica para la presión es común
+                legend_title_text="Curvas de Saturación",
+                template="plotly_white"
+            )
+
+        st.plotly_chart(fig)
 
     except Exception as e:
-        st.write("No se pudo generar la curva de saturación:", e)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# === Sección de contacto plegable ===
-with st.expander("Contacto"):
-    st.write("**Creador:** Greco Agustin")
-    st.write("**Contacto:** pvt.student657@passfwd.com")
-    st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+        st.error(f"Error al generar el gráfico: {e}")
