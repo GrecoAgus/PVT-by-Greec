@@ -196,7 +196,7 @@ def find_pressure_bracket(func, p_min=1e-6, p_max=1e8, n=80):
             prev_p = None
     return None
 
-# === Calcula P a partir de (T,h) o (T,u) ===
+# === Calcula P a partir de (T,h) or (T,u) ===
 def P_from_T_H_or_U(T_SI, val_SI, fluid, prop="H", dentro_campana=False, fase=None):
     """
     Devuelve presión (Pa) para (T, H) o (T, U).
@@ -456,12 +456,19 @@ if st.button("Calcular"):
             if P_guess is not None:
                 results = calcular_propiedades("P", P_guess, prop_HU, val_HU_SI, fluido_cp)
                 st.subheader("Resultados (Dentro de la campana)")
+                if "estado_termodinamico" in results:
+                    st.info(f"**Estado termodinámico:** {results['estado_termodinamico']}")
+                
                 for k, v in results.items():
-                    if v is not None:
-                        unit = output_units.get(k, "")
-                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-                    else:
-                        st.write(f"**{display_names.get(k,k)}**: No disponible")
+                    if k != "estado_termodinamico":
+                        if v is not None:
+                            unit = output_units.get(k, "")
+                            if isinstance(v, (int, float)) and math.isfinite(v):
+                                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                            else:
+                                st.write(f"**{display_names.get(k,k)}**: No disponible")
+                        else:
+                            st.write(f"**{display_names.get(k,k)}**: No disponible")
                 
                 # Guardar en historial
                 if len(st.session_state['historial']) >= 20:
@@ -479,56 +486,72 @@ if st.button("Calcular"):
             st.subheader("Múltiples soluciones posibles")
             st.info("Para los valores ingresados, existen dos estados posibles:")
             
-        # Intentar líquido comprimido
-        P_liq = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, fase='liquido')
-        results_liq = None
-        if P_liq is not None:
-            results_liq = calcular_propiedades("T", T_SI, "P", P_liq, fluido_cp)
-            st.subheader("Opción 1: Líquido comprimido")
-            for k, v in results_liq.items():
-                if v is not None:
-                    unit = output_units.get(k, "")
-                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-                else:
-                    st.write(f"**{display_names.get(k,k)}**: No disponible")
-        
-        # Intentar vapor sobrecalentado
-        P_vap = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, fase='vapor')
-        results_vap = None
-        if P_vap is not None:
-            results_vap = calcular_propiedades("T", T_SI, "P", P_vap, fluido_cp)
-            st.subheader("Opción 2: Vapor sobrecalentado")
-            for k, v in results_vap.items():
-                if v is not None:
-                    unit = output_units.get(k, "")
-                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-                else:
-                    st.write(f"**{display_names.get(k,k)}**: No disponible")
-        # Mostrar advertencia siempre (incluso si hay resultados)
-        st.warning("""
-        **💡 Nota importante sobre T y h / T y u:**
-        Para una misma temperatura y entalpía (o energía interna) pueden existir **dos estados diferentes**:
-        - **Líquido comprimido** (alta presión)
-        - **Vapor sobrecalentado** (baja presión)
-        
-        Si los resultados no coinciden con lo esperado, prueba marcando la opción 'Dentro de la campana?' 
-        o verifica que los valores ingresados sean consistentes.
-        """)
-        
-        # Verificar si ambas opciones están vacías o no disponibles
-        liq_todos_none = results_liq is None or all(v is None for v in results_liq.values())
-        vap_todos_none = results_vap is None or all(v is None for v in results_vap.values())
-        
-        if liq_todos_none and vap_todos_none:
-            st.warning("""
-            **🔍 Situación especial:**
-            Ambas opciones aparecen como 'No disponible', lo que indica que los valores ingresados 
-            muy probablemente corresponden a un estado **dentro de la campana de saturación**.
+            # Intentar líquido comprimido
+            P_liq = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, fase='liquido')
+            results_liq = None
+            if P_liq is not None:
+                results_liq = calcular_propiedades("T", T_SI, "P", P_liq, fluido_cp)
+                st.subheader("Opción 1: Líquido comprimido")
+                if "estado_termodinamico" in results_liq:
+                    st.info(f"**Estado termodinámico:** {results_liq['estado_termodinamico']}")
+                
+                for k, v in results_liq.items():
+                    if k != "estado_termodinamico":
+                        if v is not None:
+                            unit = output_units.get(k, "")
+                            if isinstance(v, (int, float)) and math.isfinite(v):
+                                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                            else:
+                                st.write(f"**{display_names.get(k,k)}**: No disponible")
+                        else:
+                            st.write(f"**{display_names.get(k,k)}**: No disponible")
+
+            # Intentar vapor sobrecalentado
+            P_vap = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func, fase='vapor')
+            results_vap = None
+            if P_vap is not None:
+                results_vap = calcular_propiedades("T", T_SI, "P", P_vap, fluido_cp)
+                st.subheader("Opción 2: Vapor sobrecalentado")
+                if "estado_termodinamico" in results_vap:
+                    st.info(f"**Estado termodinámico:** {results_vap['estado_termodinamico']}")
+                
+                for k, v in results_vap.items():
+                    if k != "estado_termodinamico":
+                        if v is not None:
+                            unit = output_units.get(k, "")
+                            if isinstance(v, (int, float)) and math.isfinite(v):
+                                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                            else:
+                                st.write(f"**{display_names.get(k,k)}**: No disponible")
+                        else:
+                            st.write(f"**{display_names.get(k,k)}**: No disponible")
             
-            **Solución inmediata:** Marca 'Dentro de la campana?' y vuelve a calcular.
+            # Mostrar advertencia siempre (incluso si hay resultados)
+            st.warning("""
+            **💡 Nota importante sobre T y h / T y u:**
+            Para una misma temperatura y entalpía (o energía interna) pueden existir **dos estados diferentes**:
+            - **Líquido comprimido** (alta presión)
+            - **Vapor sobrecalentado** (baja presión)
+            
+            Si los resultados no coinciden con lo esperado, prueba marcando la opción 'Dentro de la campana?' 
+            o verifica que los valores ingresados sean consistentes.
             """)
-        elif P_liq is None and P_vap is None:
-            st.error("No se encontraron soluciones para los valores dados")
+            
+            # Verificar si ambas opciones están vacías o no disponibles
+            liq_todos_none = results_liq is None or all(v is None for v in results_liq.values() if v is not None)
+            vap_todos_none = results_vap is None or all(v is None for v in results_vap.values() if v is not None)
+            
+            if liq_todos_none and vap_todos_none:
+                st.warning("""
+                **🔍 Situación especial:**
+                Ambas opciones aparecen como 'No disponible', lo que indica que los valores ingresados 
+                muy probablemente corresponden a un estado **dentro de la campana de saturación**.
+                
+                **Solución inmediata:** Marca 'Dentro de la campana?' y vuelve a calcular.
+                """)
+            elif P_liq is None and P_vap is None:
+                st.error("No se encontraron soluciones para los valores dados")
+        
         else:
             # Búsqueda automática (intenta encontrar una solución)
             P_guess = P_from_T_H_or_U(T_SI, val_HU_SI, fluido_cp, prop=prop_for_func)
@@ -540,18 +563,36 @@ if st.button("Calcular"):
                 if 'liquido' in P_guess:
                     results_liq = calcular_propiedades("T", T_SI, "P", P_guess['liquido'], fluido_cp)
                     st.subheader("Opción 1: Líquido comprimido")
+                    if "estado_termodinamico" in results_liq:
+                        st.info(f"**Estado termodinámico:** {results_liq['estado_termodinamico']}")
+                    
                     for k, v in results_liq.items():
-                        if v is not None:
-                            unit = output_units.get(k, "")
-                            st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                        if k != "estado_termodinamico":
+                            if v is not None:
+                                unit = output_units.get(k, "")
+                                if isinstance(v, (int, float)) and math.isfinite(v):
+                                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                                else:
+                                    st.write(f"**{display_names.get(k,k)}**: No disponible")
+                            else:
+                                st.write(f"**{display_names.get(k,k)}**: No disponible")
                 
                 if 'vapor' in P_guess:
                     results_vap = calcular_propiedades("T", T_SI, "P", P_guess['vapor'], fluido_cp)
                     st.subheader("Opción 2: Vapor sobrecalentado")
+                    if "estado_termodinamico" in results_vap:
+                        st.info(f"**Estado termodinámico:** {results_vap['estado_termodinamico']}")
+                    
                     for k, v in results_vap.items():
-                        if v is not None:
-                            unit = output_units.get(k, "")
-                            st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                        if k != "estado_termodinamico":
+                            if v is not None:
+                                unit = output_units.get(k, "")
+                                if isinstance(v, (int, float)) and math.isfinite(v):
+                                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                                else:
+                                    st.write(f"**{display_names.get(k,k)}**: No disponible")
+                            else:
+                                st.write(f"**{display_names.get(k,k)}**: No disponible")
                 
                 st.info("Marca 'No estoy seguro, mostrar todas las opciones' para ver ambas siempre")
                 
@@ -559,12 +600,19 @@ if st.button("Calcular"):
                 # Una sola solución encontrada
                 results = calcular_propiedades("T", T_SI, "P", P_guess, fluido_cp)
                 st.subheader("Resultados")
+                if "estado_termodinamico" in results:
+                    st.info(f"**Estado termodinámico:** {results['estado_termodinamico']}")
+                
                 for k, v in results.items():
-                    if v is not None:
-                        unit = output_units.get(k, "")
-                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
-                    else:
-                        st.write(f"**{display_names.get(k,k)}**: No disponible")
+                    if k != "estado_termodinamico":
+                        if v is not None:
+                            unit = output_units.get(k, "")
+                            if isinstance(v, (int, float)) and math.isfinite(v):
+                                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                            else:
+                                st.write(f"**{display_names.get(k,k)}**: No disponible")
+                        else:
+                            st.write(f"**{display_names.get(k,k)}**: No disponible")
                 
                 # Guardar en historial
                 if len(st.session_state['historial']) >= 20:
@@ -582,16 +630,19 @@ if st.button("Calcular"):
         # Usar CoolProp directamente
         results = calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluido_cp)
         
-       # Mostrar resultados
+        # Mostrar resultados
         st.subheader("Resultados")
         if "estado_termodinamico" in results:
             st.info(f"**Estado termodinámico:** {results['estado_termodinamico']}")
         
         for k, v in results.items():
-            if k != "estado_termodinamico":  # No mostrar el campo de estado en la lista normal
+            if k != "estado_termodinamico":
                 if v is not None:
                     unit = output_units.get(k, "")
-                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                    if isinstance(v, (int, float)) and math.isfinite(v):
+                        st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                    else:
+                        st.write(f"**{display_names.get(k,k)}**: No disponible")
                 else:
                     st.write(f"**{display_names.get(k,k)}**: No disponible")
         
@@ -610,6 +661,18 @@ if hist:
     with st.expander("Mostrar Historial"):
         max_index = len(hist) - 1
         index = st.slider("Selecciona cálculo", 0, max_index, max_index, key="slider_historial") if len(hist) > 1 else 0
+        
+        # Botones para borrar puntos específicos
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Borrar este punto", key="borrar_individual"):
+                del st.session_state['historial'][index]
+                st.rerun()
+        with col2:
+            if st.button("🗑️ Borrar todos los puntos", key="borrar_todos"):
+                st.session_state['historial'] = []
+                st.rerun()
+        
         st.write(f"**Cálculo {index+1} ({hist[index]['fecha']})**")
         st.write("**Entradas:**")
         for prop, val in hist[index]["entrada"].items():
@@ -618,7 +681,10 @@ if hist:
         for k, v in hist[index]["resultado"].items():
             if v is not None:
                 unit = output_units.get(k, "")
-                st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                if isinstance(v, (int, float)) and math.isfinite(v):
+                    st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
+                else:
+                    st.write(f"**{display_names.get(k,k)}**: No disponible")
             else:
                 st.write(f"**{display_names.get(k,k)}**: No disponible")
 
@@ -771,15 +837,9 @@ with st.expander("Mostrar Gráfico"):
         st.write("No se pudo generar la curva de saturación:", e)
 
     st.plotly_chart(fig, use_container_width=True)
+
 # === Sección de contacto plegable ===
 with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
-
-
-
-
-
-
-
