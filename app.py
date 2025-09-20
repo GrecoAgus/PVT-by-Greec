@@ -468,6 +468,16 @@ if st.button("Calcular"):
                     st.write(f"**{display_names.get(k,k)}** = {v:.5g} {unit}")
                 else:
                     st.write(f"**{display_names.get(k,k)}**: No disponible")
+        # Mostrar advertencia siempre (incluso si hay resultados)
+        st.warning("""
+        **💡 Nota importante sobre T y h / T y u:**
+        Para una misma temperatura y entalpía (o energía interna) pueden existir **dos estados diferentes**:
+        - **Líquido comprimido** (alta presión)
+        - **Vapor sobrecalentado** (baja presión)
+        
+        Si los resultados no coinciden con lo esperado, prueba marcando la opción 'Dentro de la campana?' 
+        o verifica que los valores ingresados sean consistentes.
+        """)
         
         # Verificar si ambas opciones están vacías o no disponibles
         liq_todos_none = results_liq is None or all(v is None for v in results_liq.values())
@@ -475,11 +485,11 @@ if st.button("Calcular"):
         
         if liq_todos_none and vap_todos_none:
             st.warning("""
-            **🔍 Interpretación de resultados:**
-            Ambas opciones aparecen como 'No disponible', lo que sugiere que los valores ingresados 
-            probablemente corresponden a un estado **dentro de la campana de saturación** (mezcla líquido-vapor).
+            **🔍 Situación especial:**
+            Ambas opciones aparecen como 'No disponible', lo que indica que los valores ingresados 
+            muy probablemente corresponden a un estado **dentro de la campana de saturación**.
             
-            **Solución:** Marca la opción 'Dentro de la campana?' y vuelve a calcular.
+            **Solución inmediata:** Marca 'Dentro de la campana?' y vuelve a calcular.
             """)
         elif P_liq is None and P_vap is None:
             st.error("No se encontraron soluciones para los valores dados")
@@ -700,6 +710,7 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
 
 
