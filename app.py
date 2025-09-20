@@ -328,73 +328,97 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
     except Exception:
         results["cp"], results["cv"], results["k"] = None, None, None
     
-    # Corrección inteligente para la calidad (x) - indicar estado termodinámico
-    try:  # <- Este try estaba sin indentación adecuada
-        if "x" in results:
-            # Obtener temperatura y presión del estado
-            T_val = CP.PropsSI("T", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
-            P_val = CP.PropsSI("P", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+    # Determinar estado termodinámico de manera más precisa
+    try:
+        # Obtener propiedades en SI para cálculos precisos
+        T_val = CP.PropsSI("T", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        P_val = CP.PropsSI("P", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        h_val = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+        
+        # Calcular propiedades de saturación
+        try:
+            # Intentar calcular a la temperatura actual
+            P_sat_at_T = CP.PropsSI("P", "T", T_val, "Q", 0, fluid)
+            h_l_sat = CP.PropsSI("H", "T", T_val, "Q", 0, fluid)
+            h_v_sat = CP.PropsSI("H", "T", T_val, "Q", 1, fluid)
             
-            # Calcular valores de saturación
+            # Tolerancias (ajustables según necesidad)
+            tol_pres = 10  # Pa
+            tol_enth = 10  # J/kg
+            
+            # Verificar si está en la curva de saturación
+            on_saturation_curve = (abs(P_val - P_sat_at_T) < tol_pres)
+            
+            if on_saturation_curve:
+                # En la curva de saturación
+                if results["x"] == 0.0:
+                    estado = "Líquido saturado"
+                elif results["x"] == 1.0:
+                    estado = "Vapor saturado"
+                else:
+                    estado = "Mezcla líquido-vapor"
+            else:
+                # Fuera de la curva de saturación
+                if h_val < h_l_sat - tol_enth:
+                    estado = "Líquido subenfriado"
+                    results["x"] = 0.0  # Forzar x=0 para líquido subenfriado
+                elif h_val > h_v_sat + tol_enth:
+                    estado = "Vapor sobrecalentado"
+                    results["x"] = 1.0  # Forzar x=1 para vapor sobrecalentado
+                else:
+                    # Dentro de la campana (pero no en la curva de saturación)
+                    estado = "Mezcla líquido-vapor"
+            
+            results["estado_termodinamico"] = estado
+            
+        except Exception:
+            # Si falla el cálculo de saturación a T, intentar a P
             try:
-                T_sat = CP.PropsSI("T", "P", P_val, "Q", 0, fluid)
-                P_sat_at_T = CP.PropsSI("P", "T", T_val, "Q", 0, fluid)
+                T_sat_at_P = CP.PropsSI("T", "P", P_val, "Q", 0, fluid)
+                h_l_sat = CP.PropsSI("H", "P", P_val, "Q", 0, fluid)
+                h_v_sat = CP.PropsSI("H", "P", P_val, "Q", 1, fluid)
                 
-                # Calcular entalpías de saturación para verificación adicional
-                h_l_sat = CP.PropsSI("H", "T", T_val, "Q", 0, fluid)
-                h_v_sat = CP.PropsSI("H", "T", T_val, "Q", 1, fluid)
-                h_current = CP.PropsSI("H", props[prop1], val1_SI, props[prop2], val2_SI, fluid)
+                # Tolerancias
+                tol_temp = 0.1  # K
+                tol_enth = 10   # J/kg
                 
-                if (math.isfinite(T_sat) and math.isfinite(T_val) and 
-                    math.isfinite(P_sat_at_T) and math.isfinite(P_val) and
-                    math.isfinite(h_l_sat) and math.isfinite(h_v_sat) and math.isfinite(h_current)):
-                    
-                    tol_temp = 0.1  # Tolerancia de temperatura (K)
-                    tol_pres = 10   # Tolerancia de presión (Pa)
-                    tol_enth = 10   # Tolerancia de entalpía (J/kg)
-                    
-                    # Verificar múltiples condiciones para determinar el estado
-                    on_saturation_curve = (
-                        (abs(T_val - T_sat) < tol_temp) or 
-                        (abs(P_val - P_sat_at_T) < tol_pres) or
-                        (h_l_sat - tol_enth <= h_current <= h_v_sat + tol_enth)
-                    )
-                    
-                    if on_saturation_curve:
-                        # En la curva de saturación
-                        if results["x"] == 0.0:
-                            estado = "Líquido saturado"
-                        elif results["x"] == 1.0:
-                            estado = "Vapor saturado"
-                        else:
-                            estado = "Mezcla líquido-vapor"
+                # Verificar si está en la curva de saturación
+                on_saturation_curve = (abs(T_val - T_sat_at_P) < tol_temp)
+                
+                if on_saturation_curve:
+                    # En la curva de saturación
+                    if results["x"] == 0.0:
+                        estado = "Líquido saturado"
+                    elif results["x"] == 1.0:
+                        estado = "Vapor saturado"
                     else:
-                        # Fuera de la curva de saturación
-                        if T_val < T_sat:
-                            estado = "Líquido subenfriado"
-                            results["x"] = 0.0  # Forzar x=0 para líquido subenfriado
-                        else:
-                            estado = "Vapor sobrecalentado"
-                            results["x"] = 1.0  # Forzar x=1 para vapor sobrecalentado
-                    
-                    # Agregar información del estado al resultado
-                    results["estado_termodinamico"] = estado
-                    
-            except Exception:
-                # Si falla el cálculo de saturación, usar método simple
-                try:
-                    if T_val < T_sat:
+                        estado = "Mezcla líquido-vapor"
+                else:
+                    # Fuera de la curva de saturación
+                    if h_val < h_l_sat - tol_enth:
                         estado = "Líquido subenfriado"
                         results["x"] = 0.0
-                    else:
+                    elif h_val > h_v_sat + tol_enth:
                         estado = "Vapor sobrecalentado"
                         results["x"] = 1.0
-                    results["estado_termodinamico"] = estado
-                except Exception:
-                    pass
+                    else:
+                        # Dentro de la campana (pero no en la curva de saturación)
+                        estado = "Mezcla líquido-vapor"
+                
+                results["estado_termodinamico"] = estado
+                
+            except Exception:
+                # Si ambos métodos fallan, usar método simple basado en calidad
+                if results["x"] == 0.0:
+                    estado = "Líquido"
+                elif results["x"] == 1.0:
+                    estado = "Vapor"
+                else:
+                    estado = "Mezcla líquido-vapor"
+                results["estado_termodinamico"] = estado
                 
     except Exception:
-        # Si falla el cálculo, no agregar información de estado
+        # Si falla completamente, no agregar información de estado
         pass
     
     return results
@@ -900,4 +924,5 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
+
 
