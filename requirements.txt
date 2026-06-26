@@ -1,4 +1,6 @@
 streamlit
 CoolProp
+pytz
 plotly
+numpy
 scipy
