@@ -419,7 +419,7 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
     return results
     
 # === Streamlit UI ===
-st.title("Atlas Termodinámico Digital (ATD) 🌡️💨")
+st.title("Atlas Termodinámico Digital (ATD)")
 st.subheader("Calculadora de propiedades termodinámicas")
 
 # Fluido
