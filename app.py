@@ -78,7 +78,7 @@ output_units = {k: v[0] for k, v in unit_options.items()}
 T_ref = 15.0
 P_ref = 101325.0
 
-# === Conversiónes ===
+# === Conversiones ===
 def to_SI(prop, val, unit):
     try:
         if prop == "T":
@@ -419,7 +419,7 @@ def calcular_propiedades(prop1, val1_SI, prop2, val2_SI, fluid):
     return results
     
 # === Streamlit UI ===
-st.title("PVT by Greec 🌡️💨")
+st.title("Atlas Termodinámico Digital (ATD) 🌡️💨")
 st.subheader("Calculadora de propiedades termodinámicas")
 
 # Fluido
@@ -647,7 +647,7 @@ if st.button("Calcular"):
                                 st.write(f"**{display_names.get(k,k)}**: No disponible")
                 
                 st.info("Marca 'No estoy seguro, mostrar todas las opciones' para ver ambas siempre")
-                
+            
             elif P_guess is not None:
                 # Una sola solución encontrada
                 results = calcular_propiedades("T", T_SI, "P", P_guess, fluido_cp)
@@ -923,7 +923,7 @@ with st.expander("Mostrar Gráfico"):
                     xref="x", yref="y",
                     axref="x", ayref="y",
                     showarrow=True,
-                    arrowhead=3,
+                    headlink=3,
                     arrowsize=1,
                     arrowwidth=1.5,
                     arrowcolor="orange"
@@ -947,11 +947,3 @@ with st.expander("Contacto"):
     st.write("**Creador:** Greco Agustin")
     st.write("**Contacto:** pvt.student657@passfwd.com")
     st.markdown("###### Si encuentra algún bug, error o inconsistencia en los valores, o tiene sugerencias para mejorar la aplicación, por favor contacte al correo indicado para realizar la corrección.")
-
-
-
-
-
-
-
-
